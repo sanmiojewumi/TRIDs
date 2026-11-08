@@ -6,7 +6,7 @@ browser storage of whichever device you use. It runs on a PC and on a phone, and
 
 ## What it does
 
-- **Clients**: save each company once (billing address, template, payment terms, CIS rate). First run includes your
+- **Clients**: save each company once (billing address, template, payment terms). First run includes your
   business details, logo, bank details and Preferred Management Solution Ltd as a starter client.
 - **Templates**: one invoice style per company ("Company A uses Invoice A"). The default "Trade Help" template reproduces
   your current Trade Help PDF (title and intro, logo top right, gradient rules, Description / Quantity / Unit Price / Cost,
@@ -15,12 +15,14 @@ browser storage of whichever device you use. It runs on a PC and on a phone, and
 - **New invoice**: pick the client, enter site address/postcode, work date(s) and the amount. Preview, then
   *Save & download PDF*. Or type a prompt and let the form fill itself:
   `Preferred, work done on the 3rd, ST6 5EP, 471 High Street Stoke-on-Trent, £210`
-- **One running invoice sequence** across all clients (starts at 5021, set it in Settings to continue from your last
-  Trade Help number). Optional format such as `{postcode} {n}` to get `NE312EX 5021`. Numbers are never reused, even after a delete.
+- **One running invoice sequence** across all clients, starting at `00001` (zero-padded; padding and the next number are
+  editable in Settings). In Settings choose the reference format: *Number only* (`00001`) or *Client postcode + number*
+  (`NE312EX 00001`, as on Trade Help). Numbers are never reused, even after a delete.
+- **Business address and details** are kept and editable in Settings at any time.
 - **Not VAT registered**: VAT is off and hidden everywhere until you tick "VAT registered" in Settings.
 - **Automatic copy**: every issued invoice is stored as a full snapshot (so later edits to a client or template never change
   an old invoice). Re-download, duplicate, search, mark paid/unpaid from the Invoices tab.
-- **Optional UK extras**: VAT (only if registered), CIS deduction on labour only, and an "already paid" amount.
+- **No deductions**: totals are simply the amount entered. VAT is available only if you register, and there is an optional "already paid" amount.
 - **Share** button on phones that support sharing files (WhatsApp, email, Files).
 
 The prompt box is a rule-based parser that runs on the device; it understands client names, dates (`18th`, `3rd to 5th`,

@@ -34,16 +34,17 @@ describe('money', () => {
 });
 
 describe('references', () => {
-  it('formats the running sequence', () => {
+  it('formats the running sequence with zero padding', () => {
+    expect(formatRef('{n}', 1, '', 5)).toBe('00001');
+    expect(formatRef('{n}', 123456, '', 5)).toBe('123456');
     expect(formatRef('{n}', 5021)).toBe('5021');
-    expect(formatRef('{postcode} {n}', 5021, 'NE31 2EX')).toBe('NE312EX 5021');
-    expect(formatRef('INV-{n}', 7)).toBe('INV-7');
-    expect(formatRef('{postcode}', 7, '')).toBe('7');
+    expect(formatRef('{postcode} {n}', 1, 'NE31 2EX', 5)).toBe('NE312EX 00001');
+    expect(formatRef('{postcode} {n}', 7, '', 0)).toBe('7');
   });
 
   it('never reuses a ref that is already saved, across clients', () => {
-    const existing = [{ ref: '5021' }, { ref: '5022' }] as InvoiceRecord[];
-    expect(nextRef({ next: 5021, pattern: '{n}' }, 'AB1 2CD', existing)).toEqual({ ref: '5023', number: 5023 });
+    const existing = [{ ref: '00001' }, { ref: '00002' }] as InvoiceRecord[];
+    expect(nextRef({ next: 1, pattern: '{n}', padding: 5 }, 'AB1 2CD', existing)).toEqual({ ref: '00003', number: 3 });
   });
 });
 
@@ -66,24 +67,24 @@ describe('invoice + layout', () => {
   });
 
   it('snapshots dates, postcode and totals', () => {
-    const d = buildInvoiceData(draft, client, builtInTemplates[0], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '5021');
+    const d = buildInvoiceData(draft, client, builtInTemplates[0], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '00001');
     expect(d.dueDate).toBe('2026-11-22');
     expect(d.sitePostcode).toBe('SW1A 1AA');
     expect(d.totals.total).toBe(36000);
   });
 
   it.each(builtInTemplates)('lays out the $name template on one page', (tpl) => {
-    const d = buildInvoiceData(draft, client, tpl, { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: 'Me', sortCode: '00-00-00', accountNumber: '12345678' }, '5021');
+    const d = buildInvoiceData(draft, client, tpl, { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: 'Me', sortCode: '00-00-00', accountNumber: '12345678' }, '00001');
     const layout = buildLayout(d, measure);
     expect(layout.pages).toBe(1);
     const texts = layout.ops.filter((o) => o.t === 'text').map((o) => (o as { text: string }).text);
-    expect(texts.some((t) => t.includes('5021'))).toBe(true);
+    expect(texts.some((t) => t.includes('00001'))).toBe(true);
     expect(texts.some((t) => t.includes('360.00'))).toBe(true);
   });
 
   it('paginates long invoices and keeps every row', () => {
     const items = Array.from({ length: 60 }, (_, i) => ({ description: `Item number ${i + 1} with a longer description to wrap across a line maybe`, qty: 1, rate: 1000, materials: false }));
-    const d = buildInvoiceData({ ...draft, items }, client, builtInTemplates[1], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '5022');
+    const d = buildInvoiceData({ ...draft, items }, client, builtInTemplates[1], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '00002');
     const layout = buildLayout(d, measure);
     expect(layout.pages).toBeGreaterThan(1);
     const rows = layout.ops.filter((o) => o.t === 'text' && /^Item number \d+ /.test((o as { text: string }).text));

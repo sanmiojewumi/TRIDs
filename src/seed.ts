@@ -145,7 +145,7 @@ export function sampleClients(): Client[] {
 export function freshState(): AppState {
   return {
     version: 1,
-    numbering: { next: 5021, pattern: '{n}' },
+    numbering: { next: 1, pattern: '{n}', padding: 5 },
     business: { ...tridsBusiness },
     bank: { accountName: 'Trids Gas and Plumbing Ltd', sortCode: '040605', accountNumber: '30728792' },
     templates: builtInTemplates.map((t) => ({ ...t })),

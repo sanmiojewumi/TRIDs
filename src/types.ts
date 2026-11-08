@@ -119,6 +119,8 @@ export interface Numbering {
   next: number;
   /** Tokens: {n} sequence number, {postcode} client postcode without spaces, {year}. */
   pattern: string;
+  /** Zero-pad the number to this many digits (5 gives 00001). */
+  padding: number;
 }
 
 export interface AppState {

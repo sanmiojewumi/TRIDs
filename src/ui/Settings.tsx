@@ -1,5 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
-import { formatRef, PATTERN_PRESETS } from '../refs';
+import { formatRef, REF_FORMATS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
 import { backupFileName, downloadBlob, readText, shrinkImage, val } from './util';
@@ -95,28 +95,46 @@ export function Settings() {
 
       <div class="card">
         <h2>Invoice numbering</h2>
-        <p class="hint">One running sequence across all clients. The next invoice you save gets this number, then it counts up by one. Set it to carry on from your last invoice number.</p>
-        <label class="field">
-          <span>Next invoice number</span>
-          <input
-            inputMode="numeric"
-            value={String(state.numbering.next)}
-            onInput={(e) => actions.setNumbering({ ...state.numbering, next: Number(val(e).replace(/\D/g, '')) || 1 })}
-          />
-        </label>
-        <label class="field">
-          <span>Format ({'{n}'} = number, {'{postcode}'} = client postcode, {'{year}'})</span>
-          <input value={state.numbering.pattern} onInput={(e) => actions.setNumbering({ ...state.numbering, pattern: val(e) })} />
-        </label>
-        <div class="row wrap">
-          {PATTERN_PRESETS.map((p) => (
-            <button key={p.pattern} class={`btn small ${state.numbering.pattern === p.pattern ? 'primary' : ''}`} onClick={() => actions.setNumbering({ ...state.numbering, pattern: p.pattern })}>
-              {p.label}
-            </button>
+        <p class="hint">One running sequence across all clients. The next invoice you save gets the number below, then it counts up by one and never repeats.</p>
+        <fieldset class="field radios">
+          <legend>Reference format</legend>
+          {REF_FORMATS.map((f) => (
+            <label class="check" key={f.id}>
+              <input
+                type="radio"
+                name="ref-format"
+                checked={state.numbering.pattern === f.pattern}
+                onChange={() => actions.setNumbering({ ...state.numbering, pattern: f.pattern })}
+              />
+              <span>
+                {f.label}
+                <small class="muted"> e.g. {formatRef(f.pattern, state.numbering.next, 'NE31 2EX', state.numbering.padding)}</small>
+              </span>
+            </label>
           ))}
+        </fieldset>
+        <div class="grid2">
+          <label class="field">
+            <span>Next invoice number</span>
+            <input
+              inputMode="numeric"
+              value={String(state.numbering.next)}
+              onInput={(e) => actions.setNumbering({ ...state.numbering, next: Number(val(e).replace(/\D/g, '')) || 1 })}
+            />
+          </label>
+          <label class="field">
+            <span>Digits (zero padded)</span>
+            <select value={String(state.numbering.padding)} onChange={(e) => actions.setNumbering({ ...state.numbering, padding: Number(val(e)) })}>
+              {[0, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? 'No padding' : `${n} digits`}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <p class="hint">
-          Next reference: <b>{formatRef(state.numbering.pattern, state.numbering.next, 'NE31 2EX')}</b> (example postcode)
+          Next reference: <b>{formatRef(state.numbering.pattern, state.numbering.next, 'NE31 2EX', state.numbering.padding)}</b> (shown with an example postcode)
         </p>
       </div>
 

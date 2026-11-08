@@ -53,7 +53,7 @@ export function Clients() {
             </select>
           </label>
           {used > 0 && <p class="hint">{used} invoice{used === 1 ? '' : 's'} saved for this client. Numbering is one running sequence, set in Settings.</p>}
-          <div class="grid3">
+          <div class="grid2">
             <label class="field">
               <span>Payment terms (days)</span>
               <input inputMode="numeric" value={String(editing.paymentTermsDays)} onInput={(e) => set({ paymentTermsDays: Number(val(e).replace(/\D/g, '')) || 0 })} />
@@ -64,14 +64,6 @@ export function Clients() {
                 <input inputMode="decimal" value={String(editing.vatRate)} onInput={(e) => set({ vatRate: Math.min(100, Number(val(e)) || 0) })} />
               </label>
             )}
-            <label class="field">
-              <span>CIS deduction</span>
-              <select value={String(editing.cisRate)} onChange={(e) => set({ cisRate: Number(val(e)) })}>
-                <option value="0">None</option>
-                <option value="20">20%</option>
-                <option value="30">30%</option>
-              </select>
-            </label>
           </div>
           <label class="field">
             <span>Default description</span>

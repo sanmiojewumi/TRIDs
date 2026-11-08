@@ -14,9 +14,14 @@ function migrate(raw: unknown): AppState {
     ...(builtInTemplates.find((b) => b.id === t.id) ?? builtInTemplates[1]),
     ...t,
   }));
+  const hasInvoices = Array.isArray(r.invoices) && r.invoices.length > 0;
+  // Early builds started at 5021 with no padding; re-base an untouched sequence on the current default.
+  const oldDefault = !hasInvoices && r.numbering && r.numbering.padding === undefined;
   return {
     version: 1,
-    numbering: { ...base.numbering, ...(r.numbering ?? {}) },
+    numbering: oldDefault
+      ? base.numbering
+      : { ...base.numbering, ...(r.numbering && r.numbering.padding === undefined ? { padding: 0 } : {}), ...(r.numbering ?? {}) },
     business: { ...emptyBusiness, ...(r.business ?? {}) },
     bank: { ...base.bank, ...(r.bank ?? {}) },
     templates,

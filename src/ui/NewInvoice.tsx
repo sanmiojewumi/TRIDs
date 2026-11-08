@@ -214,7 +214,6 @@ export function NewInvoice() {
           <p class="hint">
             Template: {templateFor(state, client).name} | Next ref: {nextRef(state.numbering, client.postcode, state.invoices).ref} | Terms: {client.paymentTermsDays === 0 ? 'due on receipt' : `${client.paymentTermsDays} days`}
             {state.business.vatRegistered && client.vatRate > 0 && ` | VAT ${client.vatRate}%`}
-            {client.cisRate > 0 && ` | CIS ${client.cisRate}%`}
           </p>
         )}
 
@@ -290,12 +289,6 @@ export function NewInvoice() {
                   <div class="item-total">{formatMoney(lineTotal(it))}</div>
                 </div>
                 <div class="row">
-                  {client && client.cisRate > 0 && (
-                    <label class="check">
-                      <input type="checkbox" checked={it.materials} onChange={(e) => updateItem(i, { materials: (e.target as HTMLInputElement).checked })} />
-                      Materials (no CIS)
-                    </label>
-                  )}
                   {draft.items.length > 1 && (
                     <button class="btn ghost small" onClick={() => setDraft({ items: draft.items.filter((_, x) => x !== i) })}>
                       Remove
@@ -357,12 +350,6 @@ export function NewInvoice() {
             <div>
               <span>VAT {preview.totals.vatRate}%</span>
               <b>{formatMoney(preview.totals.vat)}</b>
-            </div>
-          )}
-          {preview.totals.cis > 0 && (
-            <div>
-              <span>CIS {preview.totals.cisRate}%</span>
-              <b>-{formatMoney(preview.totals.cis)}</b>
             </div>
           )}
           <div class="grand">
