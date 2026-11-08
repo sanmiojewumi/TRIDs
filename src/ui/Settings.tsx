@@ -1,0 +1,166 @@
+import { useRef, useState } from 'preact/hooks';
+import { actions, getSaveError, useStore } from '../store';
+import type { Business } from '../types';
+import { backupFileName, downloadBlob, readText, shrinkImage, val } from './util';
+
+export function Settings() {
+  const state = useStore();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState('');
+  const b = state.business;
+  const bank = state.bank;
+  const setB = (patch: Partial<Business>) => actions.setBusiness({ ...b, ...patch });
+  const saveError = getSaveError();
+
+  return (
+    <section class="page-wrap">
+      <h1>Settings</h1>
+      {saveError && <div class="error">{saveError}</div>}
+
+      <div class="card">
+        <h2>Your business</h2>
+        <label class="field">
+          <span>Business / trading name</span>
+          <input value={b.name} onInput={(e) => setB({ name: val(e) })} />
+        </label>
+        <label class="field">
+          <span>Address</span>
+          <textarea rows={3} value={b.address} onInput={(e) => setB({ address: val(e) })} />
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span>Postcode</span>
+            <input value={b.postcode} autocapitalize="characters" onInput={(e) => setB({ postcode: val(e).toUpperCase() })} />
+          </label>
+          <label class="field">
+            <span>Phone</span>
+            <input type="tel" value={b.phone} onInput={(e) => setB({ phone: val(e) })} />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input type="email" value={b.email} onInput={(e) => setB({ email: val(e) })} />
+          </label>
+          <label class="field">
+            <span>Website</span>
+            <input value={b.website} onInput={(e) => setB({ website: val(e) })} />
+          </label>
+          <label class="field">
+            <span>Company number</span>
+            <input value={b.companyNumber} onInput={(e) => setB({ companyNumber: val(e) })} />
+          </label>
+          <label class="field">
+            <span>VAT number</span>
+            <input value={b.vatNumber} onInput={(e) => setB({ vatNumber: val(e) })} />
+          </label>
+          <label class="field">
+            <span>UTR (CIS)</span>
+            <input value={b.utr} onInput={(e) => setB({ utr: val(e) })} />
+          </label>
+        </div>
+        <div class="field">
+          <span>Logo</span>
+          <div class="row">
+            {b.logo && <img class="logo-thumb" src={b.logo} alt="Your logo" />}
+            <label class="btn small">
+              {b.logo ? 'Replace' : 'Upload logo'}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={async (e) => {
+                  const f = (e.target as HTMLInputElement).files?.[0];
+                  if (!f) return;
+                  try {
+                    const { dataUrl, ratio } = await shrinkImage(f);
+                    setB({ logo: dataUrl, logoRatio: ratio });
+                  } catch (err) {
+                    setMsg(err instanceof Error ? err.message : 'Could not use that image.');
+                  }
+                }}
+              />
+            </label>
+            {b.logo && (
+              <button class="btn small ghost" onClick={() => setB({ logo: '' })}>
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bank details</h2>
+        <label class="field">
+          <span>Account name</span>
+          <input value={bank.accountName} onInput={(e) => actions.setBank({ ...bank, accountName: val(e) })} />
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span>Sort code</span>
+            <input inputMode="numeric" placeholder="00-00-00" value={bank.sortCode} onInput={(e) => actions.setBank({ ...bank, sortCode: val(e) })} />
+          </label>
+          <label class="field">
+            <span>Account number</span>
+            <input inputMode="numeric" value={bank.accountNumber} onInput={(e) => actions.setBank({ ...bank, accountNumber: val(e) })} />
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Your data</h2>
+        <p class="hint">
+          Everything is stored on this device only. To use the app on a second device (or protect against a lost phone), export a backup and import it there.
+        </p>
+        <div class="row wrap">
+          <button
+            class="btn"
+            onClick={() => {
+              downloadBlob(new Blob([actions.exportJSON()], { type: 'application/json' }), backupFileName());
+              setMsg('Backup downloaded.');
+            }}
+          >
+            Export backup
+          </button>
+          <button class="btn" onClick={() => fileRef.current?.click()}>
+            Import backup
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={async (e) => {
+              const f = (e.target as HTMLInputElement).files?.[0];
+              (e.target as HTMLInputElement).value = '';
+              if (!f) return;
+              if (!confirm('Importing replaces everything on this device with the backup. Continue?')) return;
+              try {
+                actions.importJSON(await readText(f));
+                setMsg('Backup imported.');
+              } catch (err) {
+                setMsg(err instanceof Error ? err.message : 'Import failed.');
+              }
+            }}
+          />
+        </div>
+        <div class="row wrap">
+          <button class="btn ghost" onClick={() => (actions.loadSampleClients(), setMsg('Sample clients added.'))}>
+            Add sample clients
+          </button>
+          <button
+            class="btn danger"
+            onClick={() => {
+              if (confirm('Erase ALL data on this device (clients, invoices, settings)? Export a backup first.')) {
+                actions.resetAll();
+                setMsg('Everything erased.');
+              }
+            }}
+          >
+            Erase everything
+          </button>
+        </div>
+        {msg && <p class="hint" role="status">{msg}</p>}
+      </div>
+    </section>
+  );
+}
