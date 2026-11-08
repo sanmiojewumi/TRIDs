@@ -216,5 +216,17 @@ export function parsePrompt(input: string, clients: Client[], today: Date = new 
       .trim();
     if (cleaned && !(client && norm(cleaned) === norm(client.name))) result.siteAddress = cleaned;
   }
+  if (!result.siteAddress) {
+    const clauses = text.split(',').map((c) => c.trim());
+    const start = clauses.findIndex((c) => /^\d{1,4}[a-z]?(?:-\d+)?\s+[a-z]/i.test(c) && !/\b(?:invoice|work|done|for|total)\b/i.test(c));
+    if (start >= 0) {
+      const parts = [clauses[start]];
+      for (const c of clauses.slice(start + 1, start + 3)) {
+        if (/^[a-z][a-z' -]{1,30}$/i.test(c) && !/\b(?:invoice|work|done|for|total|amount|on|the)\b/i.test(c)) parts.push(c);
+        else break;
+      }
+      result.siteAddress = parts.join(', ');
+    }
+  }
   return result;
 }

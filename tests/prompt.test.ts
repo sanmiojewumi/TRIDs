@@ -49,4 +49,12 @@ describe('parsePrompt', () => {
     expect(r.workDates).toEqual([]);
     expect(r.siteAddress).toBe('18 Park Road');
   });
+
+  it('finds a street address without the word "at"', () => {
+    const r = parsePrompt('generate an invoice for company A with work done on the 18th, post code SW1A 1AA, 12 High Street Leeds, £450', clients, today);
+    expect(r.siteAddress).toBe('12 High Street Leeds');
+    expect(r.amount).toBe(45000);
+    expect(r.workDates).toEqual(['2026-10-18']);
+    expect(parsePrompt('company b, 7 Mill Lane, Bradford, BD1 1AA', clients, today).siteAddress).toBe('7 Mill Lane, Bradford');
+  });
 });
