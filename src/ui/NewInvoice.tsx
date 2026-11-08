@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatWorkDates, todayISO } from '../dates';
 import { buildInvoiceData, emptyDraft, validateDraft } from '../invoice';
 import { formatMoney, lineTotal, parsePence, penceToInput } from '../money';
+import { DEFAULT_DESCRIPTION } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
 import { nextRef } from '../refs';
 import { actions, templateFor, useStore } from '../store';
@@ -32,6 +33,7 @@ export function seedDraftFromRecord(rec: InvoiceRecord) {
     issueDate: todayISO(),
     customerRef: d.customerRef,
     notes: d.notes,
+    paid: 0,
     items: d.items.map((i) => ({ ...i })),
   };
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -65,7 +67,7 @@ export function NewInvoice() {
   const pickClient = (id: string) => {
     const c = state.clients.find((x) => x.id === id);
     const items = draft.items.map((i, idx) =>
-      idx === 0 && c && (!i.description || state.clients.some((o) => o.defaultDescription === i.description) || i.description === 'Labour')
+      idx === 0 && c && (!i.description || state.clients.some((o) => o.defaultDescription === i.description) || i.description === DEFAULT_DESCRIPTION)
         ? { ...i, description: c.defaultDescription || i.description }
         : i,
     );
@@ -104,10 +106,10 @@ export function NewInvoice() {
       if (p.description) {
         first.description = p.description;
         found.push(`Description: ${p.description}`);
-      } else if (c && (!first.description || first.description === 'Labour')) first.description = c.defaultDescription || first.description;
+      } else if (c && (!first.description || first.description === DEFAULT_DESCRIPTION)) first.description = c.defaultDescription || first.description;
       items[0] = first;
       patch.items = items;
-    } else if (c && patch.clientId && items[0] && (!items[0].description || items[0].description === 'Labour')) {
+    } else if (c && patch.clientId && items[0] && (!items[0].description || items[0].description === DEFAULT_DESCRIPTION)) {
       items[0] = { ...items[0], description: c.defaultDescription || items[0].description };
       patch.items = items;
     }
@@ -121,7 +123,7 @@ export function NewInvoice() {
 
   const preview = useMemo(() => {
     if (!client) return undefined;
-    const { ref } = nextRef(client, state.invoices);
+    const { ref } = nextRef(state.numbering, client.postcode, state.invoices);
     return buildInvoiceData(draft, client, templateFor(state, client), state.business, state.bank, ref);
   }, [draft, client, state]);
 
@@ -210,8 +212,8 @@ export function NewInvoice() {
         </label>
         {client && (
           <p class="hint">
-            Template: {templateFor(state, client).name} | Next ref: {nextRef(client, state.invoices).ref} | Terms: {client.paymentTermsDays} days
-            {client.vatRate > 0 && ` | VAT ${client.vatRate}%`}
+            Template: {templateFor(state, client).name} | Next ref: {nextRef(state.numbering, client.postcode, state.invoices).ref} | Terms: {client.paymentTermsDays === 0 ? 'due on receipt' : `${client.paymentTermsDays} days`}
+            {state.business.vatRegistered && client.vatRate > 0 && ` | VAT ${client.vatRate}%`}
             {client.cisRate > 0 && ` | CIS ${client.cisRate}%`}
           </p>
         )}
@@ -232,8 +234,8 @@ export function NewInvoice() {
             />
           </label>
           <label class="field">
-            <span>Site name (optional)</span>
-            <input value={draft.siteName} placeholder="e.g. Plot 4" onInput={(e) => setDraft({ siteName: val(e) })} />
+            <span>Occupier / contact (optional)</span>
+            <input value={draft.siteName} placeholder="e.g. M Austin" onInput={(e) => setDraft({ siteName: val(e) })} />
           </label>
         </div>
 
@@ -257,7 +259,7 @@ export function NewInvoice() {
         {single ? (
           <div class="grid2">
             <label class="field">
-              <span>Amount (£, before VAT)</span>
+              <span>{state.business.vatRegistered ? 'Amount (£, before VAT)' : 'Amount (£)'}</span>
               <input
                 inputMode="decimal"
                 placeholder="0.00"
@@ -334,6 +336,10 @@ export function NewInvoice() {
               </label>
             </div>
             <label class="field">
+              <span>Already paid (£)</span>
+              <input inputMode="decimal" placeholder="0.00" value={penceToInput(draft.paid)} onInput={(e) => setDraft({ paid: parsePence(val(e)) })} />
+            </label>
+            <label class="field">
               <span>Notes (shown on the invoice)</span>
               <textarea rows={3} value={draft.notes} onInput={(e) => setDraft({ notes: val(e) })} />
             </label>
@@ -360,8 +366,8 @@ export function NewInvoice() {
             </div>
           )}
           <div class="grand">
-            <span>Total due</span>
-            <b>{formatMoney(preview.totals.total)}</b>
+            <span>{draft.paid > 0 ? 'Balance due' : 'Total due'}</span>
+            <b>{formatMoney(preview.totals.total - draft.paid)}</b>
           </div>
         </div>
       )}

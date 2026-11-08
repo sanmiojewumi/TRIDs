@@ -34,3 +34,14 @@ export function computeTotals(items: LineItem[], vatRate: number, cisRate: numbe
   const cis = Math.round((labour * cisRate) / 100);
   return { subtotal, labour, materials, vatRate, vat, cisRate, cis, total: subtotal + vat - cis };
 }
+
+/** 1,250.50 (no currency symbol), as used in invoice table columns. */
+export function formatPlain(pence: number): string {
+  return formatMoney(pence).replace('£', '');
+}
+
+/** £ 1,250.50 */
+export function formatSpaced(pence: number): string {
+  const plain = formatPlain(pence);
+  return plain.startsWith('-') ? `-£ ${plain.slice(1)}` : `£ ${plain}`;
+}

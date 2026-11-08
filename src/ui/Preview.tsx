@@ -92,7 +92,7 @@ export function Preview(props: Props) {
           <strong>{data.ref}</strong>
           <span class={`badge ${draft ? 'draft' : record?.status}`}>{draft ? 'Preview' : record?.status === 'paid' ? 'Paid' : 'Saved'}</span>
         </div>
-        <div class="overlay-total">{formatMoney(data.totals.total)}</div>
+        <div class="overlay-total">{formatMoney(data.totals.total - (data.paid ?? 0))}</div>
       </header>
       <div class="overlay-body">
         {pages.map((svg, i) => (

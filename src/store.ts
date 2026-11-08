@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { buildInvoiceData } from './invoice';
-import { defaultPrefix, nextRef, sanitizePrefix } from './refs';
+import { nextRef } from './refs';
 import { builtInTemplates, emptyBusiness, freshState, sampleClients } from './seed';
-import type { AppState, Client, Draft, InvoiceRecord, Template } from './types';
+import type { AppState, Client, Draft, InvoiceRecord, Numbering, Template } from './types';
 
 const KEY = 'invoice-desk.v1';
 
@@ -10,9 +10,13 @@ function migrate(raw: unknown): AppState {
   const base = freshState();
   if (!raw || typeof raw !== 'object') return base;
   const r = raw as Partial<AppState>;
-  const templates = Array.isArray(r.templates) && r.templates.length ? r.templates : base.templates;
+  const templates = (Array.isArray(r.templates) && r.templates.length ? r.templates : base.templates).map((t) => ({
+    ...(builtInTemplates.find((b) => b.id === t.id) ?? builtInTemplates[1]),
+    ...t,
+  }));
   return {
     version: 1,
+    numbering: { ...base.numbering, ...(r.numbering ?? {}) },
     business: { ...emptyBusiness, ...(r.business ?? {}) },
     bank: { ...base.bank, ...(r.bank ?? {}) },
     templates,
@@ -74,9 +78,11 @@ export const actions = {
   setBank(bank: AppState['bank']) {
     commit({ ...state, bank });
   },
+  setNumbering(numbering: Numbering) {
+    commit({ ...state, numbering: { ...numbering, next: Math.max(1, Math.floor(numbering.next) || 1) } });
+  },
   saveClient(client: Client) {
-    const prefix = sanitizePrefix(client.refPrefix) || defaultPrefix(client.name);
-    const clean = { ...client, refPrefix: prefix, nextNumber: Math.max(1, Math.floor(client.nextNumber) || 1) };
+    const clean = { ...client };
     const exists = state.clients.some((c) => c.id === clean.id);
     const clients = exists ? state.clients.map((c) => (c.id === clean.id ? clean : c)) : [...state.clients, clean];
     clients.sort((a, b) => a.name.localeCompare(b.name));
@@ -98,11 +104,11 @@ export const actions = {
       clients: state.clients.map((c) => (c.templateId === id ? { ...c, templateId: fallback } : c)),
     });
   },
-  /** Assigns the next reference for the client, stores a full snapshot, and bumps the counter. */
+  /** Assigns the next number in the running sequence, stores a full snapshot, and advances the counter. */
   issueInvoice(draft: Draft): InvoiceRecord {
     const client = state.clients.find((c) => c.id === draft.clientId);
     if (!client) throw new Error('Client not found');
-    const { ref, number } = nextRef(client, state.invoices);
+    const { ref, number } = nextRef(state.numbering, client.postcode, state.invoices);
     const data = buildInvoiceData(draft, client, templateFor(state, client), state.business, state.bank, ref);
     const record: InvoiceRecord = {
       id: crypto.randomUUID(),
@@ -115,7 +121,7 @@ export const actions = {
     commit({
       ...state,
       invoices: [record, ...state.invoices],
-      clients: state.clients.map((c) => (c.id === client.id ? { ...c, nextNumber: number + 1 } : c)),
+      numbering: { ...state.numbering, next: number + 1 },
     });
     return record;
   },

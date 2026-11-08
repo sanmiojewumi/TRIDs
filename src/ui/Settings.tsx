@@ -1,4 +1,5 @@
 import { useRef, useState } from 'preact/hooks';
+import { formatRef, PATTERN_PRESETS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
 import { backupFileName, downloadBlob, readText, shrinkImage, val } from './util';
@@ -57,6 +58,10 @@ export function Settings() {
             <input value={b.utr} onInput={(e) => setB({ utr: val(e) })} />
           </label>
         </div>
+        <label class="check">
+          <input type="checkbox" checked={b.vatRegistered} onChange={(e) => setB({ vatRegistered: (e.target as HTMLInputElement).checked })} />
+          VAT registered (leave off if you are not: VAT is then hidden everywhere)
+        </label>
         <div class="field">
           <span>Logo</span>
           <div class="row">
@@ -86,6 +91,33 @@ export function Settings() {
             )}
           </div>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>Invoice numbering</h2>
+        <p class="hint">One running sequence across all clients. The next invoice you save gets this number, then it counts up by one. Set it to carry on from your last invoice number.</p>
+        <label class="field">
+          <span>Next invoice number</span>
+          <input
+            inputMode="numeric"
+            value={String(state.numbering.next)}
+            onInput={(e) => actions.setNumbering({ ...state.numbering, next: Number(val(e).replace(/\D/g, '')) || 1 })}
+          />
+        </label>
+        <label class="field">
+          <span>Format ({'{n}'} = number, {'{postcode}'} = client postcode, {'{year}'})</span>
+          <input value={state.numbering.pattern} onInput={(e) => actions.setNumbering({ ...state.numbering, pattern: val(e) })} />
+        </label>
+        <div class="row wrap">
+          {PATTERN_PRESETS.map((p) => (
+            <button key={p.pattern} class={`btn small ${state.numbering.pattern === p.pattern ? 'primary' : ''}`} onClick={() => actions.setNumbering({ ...state.numbering, pattern: p.pattern })}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p class="hint">
+          Next reference: <b>{formatRef(state.numbering.pattern, state.numbering.next, 'NE31 2EX')}</b> (example postcode)
+        </p>
       </div>
 
       <div class="card">

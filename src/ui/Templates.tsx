@@ -9,7 +9,7 @@ import { val } from './util';
 function sampleData(tpl: Template, business: InvoiceData['business'], bank: InvoiceData['bank']): InvoiceData {
   const items = [{ description: 'Labour - works carried out as instructed', qty: 1, rate: 45000, materials: false }];
   return {
-    ref: 'ABC-0001',
+    ref: '5021',
     issueDate: todayISO(),
     dueDate: addDays(todayISO(), 14),
     workDates: [todayISO()],
@@ -54,6 +54,7 @@ export function Templates() {
               <label class="field">
                 <span>Layout</span>
                 <select value={editing.layout} onChange={(e) => set({ layout: val(e) as LayoutStyle })}>
+                  <option value="tradehelp">Trade Help - matches your current Trade Help invoice</option>
                   <option value="classic">Classic - title top right, coloured rule</option>
                   <option value="banded">Banded - coloured header band</option>
                   <option value="minimal">Minimal - clean and light</option>
@@ -69,6 +70,12 @@ export function Templates() {
                   <input value={editing.title} onInput={(e) => set({ title: val(e) })} />
                 </label>
               </div>
+              {editing.layout === 'tradehelp' && (
+                <label class="field">
+                  <span>Intro text under the title ({'{phone}'} = your phone number)</span>
+                  <textarea rows={3} value={editing.intro} onInput={(e) => set({ intro: val(e) })} />
+                </label>
+              )}
               <div class="checks">
                 {toggle('showQtyRate', 'Show quantity and unit price columns')}
                 {toggle('showLogo', 'Show logo')}

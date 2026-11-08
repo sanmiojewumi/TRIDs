@@ -1,5 +1,6 @@
 import { addDays, todayISO } from './dates';
 import { computeTotals } from './money';
+import { DEFAULT_DESCRIPTION } from './seed';
 import type { Bank, Business, Client, Draft, InvoiceData, Template } from './types';
 
 export function emptyDraft(client?: Client): Draft {
@@ -12,7 +13,8 @@ export function emptyDraft(client?: Client): Draft {
     issueDate: todayISO(),
     customerRef: '',
     notes: '',
-    items: [{ description: client?.defaultDescription || 'Labour', qty: 1, rate: 0, materials: false }],
+    paid: 0,
+    items: [{ description: client?.defaultDescription || DEFAULT_DESCRIPTION, qty: 1, rate: 0, materials: false }],
   };
 }
 
@@ -36,9 +38,11 @@ export function buildInvoiceData(
     customerRef: draft.customerRef.trim(),
     notes: draft.notes.trim(),
     items,
-    totals: computeTotals(items, client.vatRate, client.cisRate),
+    paid: Math.max(0, draft.paid || 0),
+    totals: computeTotals(items, business.vatRegistered ? client.vatRate : 0, client.cisRate),
     client: {
       name: client.name,
+      phone: client.phone,
       contact: client.contact,
       address: client.address,
       postcode: client.postcode,

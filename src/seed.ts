@@ -1,4 +1,7 @@
+import trids from './assets/trids-logo.png?inline';
 import type { AppState, Business, Client, Template } from './types';
+
+export const DEFAULT_DESCRIPTION = 'Job';
 
 export const emptyBusiness: Business = {
   name: '',
@@ -12,15 +15,41 @@ export const emptyBusiness: Business = {
   companyNumber: '',
   logo: '',
   logoRatio: 1,
+  vatRegistered: false,
+};
+
+export const tridsBusiness: Business = {
+  ...emptyBusiness,
+  name: 'Trids Gas and Plumbing Ltd',
+  address: 'Crewe',
+  postcode: 'CW1',
+  phone: '07311038572',
+  logo: trids,
+  logoRatio: 400 / 371,
 };
 
 export const builtInTemplates: Template[] = [
   {
     id: 'tpl-trade-help',
     name: 'Trade Help',
+    layout: 'tradehelp',
+    accent: '#1f5f8b',
+    title: 'Your Invoice',
+    intro: 'Thank you for your custom.\nIf you have any questions please call us on {phone}.',
+    showQtyRate: true,
+    showLogo: true,
+    showBankDetails: true,
+    showRegNumbers: false,
+    paymentNote: '',
+    footerNote: '',
+  },
+  {
+    id: 'tpl-classic',
+    name: 'Classic',
     layout: 'classic',
     accent: '#0f6fc6',
     title: 'INVOICE',
+    intro: '',
     showQtyRate: false,
     showLogo: true,
     showBankDetails: true,
@@ -34,6 +63,7 @@ export const builtInTemplates: Template[] = [
     layout: 'banded',
     accent: '#1b4d3e',
     title: 'INVOICE',
+    intro: '',
     showQtyRate: true,
     showLogo: true,
     showBankDetails: true,
@@ -47,6 +77,7 @@ export const builtInTemplates: Template[] = [
     layout: 'minimal',
     accent: '#344054',
     title: 'Invoice',
+    intro: '',
     showQtyRate: false,
     showLogo: true,
     showBankDetails: true,
@@ -55,17 +86,6 @@ export const builtInTemplates: Template[] = [
     footerNote: '',
   },
 ];
-
-export function freshState(): AppState {
-  return {
-    version: 1,
-    business: { ...emptyBusiness },
-    bank: { accountName: '', sortCode: '', accountNumber: '' },
-    templates: builtInTemplates.map((t) => ({ ...t })),
-    clients: [],
-    invoices: [],
-  };
-}
 
 export function newClient(partial: Partial<Client> = {}): Client {
   return {
@@ -77,15 +97,27 @@ export function newClient(partial: Partial<Client> = {}): Client {
     email: '',
     phone: '',
     templateId: builtInTemplates[0].id,
-    refPrefix: '',
-    nextNumber: 1,
     paymentTermsDays: 14,
     vatRate: 0,
     cisRate: 0,
-    defaultDescription: 'Labour',
+    defaultDescription: DEFAULT_DESCRIPTION,
     notes: '',
     ...partial,
   };
+}
+
+export function starterClients(): Client[] {
+  return [
+    newClient({
+      name: 'Preferred Management Solution Ltd',
+      address: 'Preferred House\n4-5 Merchant Court\nHebburn',
+      postcode: 'NE31 2EX',
+      email: 'accounts@preferredmanagement.co.uk',
+      phone: '01914228826',
+      templateId: 'tpl-trade-help',
+      paymentTermsDays: 0,
+    }),
+  ];
 }
 
 export function sampleClients(): Client[] {
@@ -97,9 +129,6 @@ export function sampleClients(): Client[] {
       postcode: 'EC1A 1BB',
       email: 'accounts@company-a.example',
       templateId: 'tpl-trade-help',
-      refPrefix: 'CA',
-      cisRate: 20,
-      defaultDescription: 'Labour - works carried out as instructed',
     }),
     newClient({
       name: 'Company B',
@@ -107,11 +136,20 @@ export function sampleClients(): Client[] {
       address: '22 Sample Road\nManchester',
       postcode: 'M1 1AE',
       email: 'invoices@company-b.example',
-      templateId: 'tpl-banded',
-      refPrefix: 'CB',
-      vatRate: 20,
+      templateId: 'tpl-classic',
       paymentTermsDays: 30,
-      defaultDescription: 'Maintenance works',
     }),
   ];
+}
+
+export function freshState(): AppState {
+  return {
+    version: 1,
+    numbering: { next: 5021, pattern: '{n}' },
+    business: { ...tridsBusiness },
+    bank: { accountName: 'Trids Gas and Plumbing Ltd', sortCode: '040605', accountNumber: '30728792' },
+    templates: builtInTemplates.map((t) => ({ ...t })),
+    clients: starterClients(),
+    invoices: [],
+  };
 }

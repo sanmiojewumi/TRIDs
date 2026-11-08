@@ -6,16 +6,21 @@ browser storage of whichever device you use. It runs on a PC and on a phone, and
 
 ## What it does
 
-- **Clients**: save each company once (billing address, template, reference prefix, payment terms, VAT, CIS rate).
-- **Templates**: one invoice style per company ("Company A uses Invoice A"). Three layouts (classic, banded,
-  minimal), accent colour, title, columns, payment note and footer are all editable. A "Trade Help" style is the default.
+- **Clients**: save each company once (billing address, template, payment terms, CIS rate). First run includes your
+  business details, logo, bank details and Preferred Management Solution Ltd as a starter client.
+- **Templates**: one invoice style per company ("Company A uses Invoice A"). The default "Trade Help" template reproduces
+  your current Trade Help PDF (title and intro, logo top right, gradient rules, Description / Quantity / Unit Price / Cost,
+  Total Price / Paid / Balance, due date and bank details bottom right). Classic, banded and minimal layouts are also
+  available; accent colour, title, intro, columns, payment note and footer are all editable.
 - **New invoice**: pick the client, enter site address/postcode, work date(s) and the amount. Preview, then
   *Save & download PDF*. Or type a prompt and let the form fill itself:
-  `Company A, work done on the 18th, SW1A 1AA, 12 High Street Leeds, £450`
-- **Automatic reference numbers**: per client, `CA-0001`, `CA-0002`, ... Numbers are never reused, even after a delete.
+  `Preferred, work done on the 3rd, ST6 5EP, 471 High Street Stoke-on-Trent, £210`
+- **One running invoice sequence** across all clients (starts at 5021, set it in Settings to continue from your last
+  Trade Help number). Optional format such as `{postcode} {n}` to get `NE312EX 5021`. Numbers are never reused, even after a delete.
+- **Not VAT registered**: VAT is off and hidden everywhere until you tick "VAT registered" in Settings.
 - **Automatic copy**: every issued invoice is stored as a full snapshot (so later edits to a client or template never change
   an old invoice). Re-download, duplicate, search, mark paid/unpaid from the Invoices tab.
-- **UK contractor maths**: optional VAT, and CIS deduction applied to labour only (materials lines are excluded).
+- **Optional UK extras**: VAT (only if registered), CIS deduction on labour only, and an "already paid" amount.
 - **Share** button on phones that support sharing files (WhatsApp, email, Files).
 
 The prompt box is a rule-based parser that runs on the device; it understands client names, dates (`18th`, `3rd to 5th`,

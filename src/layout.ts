@@ -1,24 +1,11 @@
 import { formatDate, formatWorkDates } from './dates';
 import { formatMoney, lineTotal } from './money';
+import { buildTradeHelpLayout } from './layout-tradehelp';
+import { PAGE_H, PAGE_W, PT, tint, wrapText, type Align, type Layout, type Measure, type Op } from './layout-core';
 import type { InvoiceData } from './types';
 
-export const PAGE_W = 210;
-export const PAGE_H = 297;
-
-export type Align = 'left' | 'right' | 'center';
-
-export type Op =
-  | { t: 'text'; page: number; x: number; y: number; text: string; size: number; bold: boolean; color: string; align: Align }
-  | { t: 'rect'; page: number; x: number; y: number; w: number; h: number; fill?: string; stroke?: string; lw?: number }
-  | { t: 'line'; page: number; x1: number; y1: number; x2: number; y2: number; color: string; lw: number }
-  | { t: 'image'; page: number; x: number; y: number; w: number; h: number; src: string };
-
-export type Measure = (text: string, size: number, bold: boolean) => number;
-
-export interface Layout {
-  pages: number;
-  ops: Op[];
-}
+export { PAGE_H, PAGE_W } from './layout-core';
+export type { Layout, Measure, Op } from './layout-core';
 
 const MARGIN = 15;
 const RIGHT = PAGE_W - MARGIN;
@@ -27,50 +14,13 @@ const FOOTER_H = 22;
 const INK = '#1f2933';
 const MUTED = '#667085';
 const RULE = '#d0d5dd';
-const PT = 0.3528;
 
-export function tint(hex: string, amount: number): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  const mix = (c: number) => Math.round(c + (255 - c) * amount);
-  const r = mix((n >> 16) & 255);
-  const g = mix((n >> 8) & 255);
-  const b = mix(n & 255);
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-}
-
-export function wrapText(text: string, width: number, size: number, bold: boolean, measure: Measure): string[] {
-  const out: string[] = [];
-  for (const para of text.split('\n')) {
-    if (!para.trim()) {
-      out.push('');
-      continue;
-    }
-    let line = '';
-    for (const word of para.split(/\s+/)) {
-      let w = word;
-      while (measure(w, size, bold) > width && w.length > 1) {
-        let cut = w.length - 1;
-        while (cut > 1 && measure(w.slice(0, cut), size, bold) > width) cut--;
-        if (line) {
-          out.push(line);
-          line = '';
-        }
-        out.push(w.slice(0, cut));
-        w = w.slice(cut);
-      }
-      const attempt = line ? `${line} ${w}` : w;
-      if (measure(attempt, size, bold) <= width) line = attempt;
-      else {
-        if (line) out.push(line);
-        line = w;
-      }
-    }
-    out.push(line);
-  }
-  return out;
-}
 
 export function buildLayout(inv: InvoiceData, measure: Measure): Layout {
+  return inv.template.layout === 'tradehelp' ? buildTradeHelpLayout(inv, measure) : buildStandardLayout(inv, measure);
+}
+
+function buildStandardLayout(inv: InvoiceData, measure: Measure): Layout {
   const { template: tpl, business: biz, client, totals, bank } = inv;
   const accent = tpl.accent;
   const ops: Op[] = [];
@@ -242,6 +192,9 @@ export function buildLayout(inv: InvoiceData, measure: Measure): Layout {
   if (totals.vatRate > 0) totalRows.push([`VAT (${totals.vatRate}%)`, formatMoney(totals.vat)]);
   if (totals.cisRate > 0) totalRows.push([`CIS deduction (${totals.cisRate}% of labour)`, `-${formatMoney(totals.cis)}`]);
 
+  const paid = inv.paid ?? 0;
+  if (paid > 0) totalRows.push(['Total', formatMoney(totals.total)], ['Paid', `-${formatMoney(paid)}`]);
+
   const payLines: string[] = [];
   payLines.push(`Payment due by ${formatDate(inv.dueDate)}.`);
   if (tpl.paymentNote) payLines.push(tpl.paymentNote.replace(/\{ref\}/g, inv.ref));
@@ -274,8 +227,8 @@ export function buildLayout(inv: InvoiceData, measure: Measure): Layout {
   if (totalFill) rect(tx - 3, ty - 5.2, RIGHT - tx + 3, 10, totalFill);
   else line(tx - 3, ty - 5.2, RIGHT, ty - 5.2, accent, 0.5);
   const tc = totalFill ? '#ffffff' : INK;
-  text(tx, ty + 1.3, 'TOTAL DUE', 10, { bold: true, color: tc });
-  text(RIGHT - 2, ty + 1.3, formatMoney(totals.total), 12, { bold: true, color: tc, align: 'right' });
+  text(tx, ty + 1.3, paid > 0 ? 'BALANCE DUE' : 'TOTAL DUE', 10, { bold: true, color: tc });
+  text(RIGHT - 2, ty + 1.3, formatMoney(totals.total - paid), 12, { bold: true, color: tc, align: 'right' });
 
   let py = blockTop + 3;
   text(MARGIN, py, 'PAYMENT', 8, labelStyle);
@@ -304,7 +257,7 @@ export function buildLayout(inv: InvoiceData, measure: Measure): Layout {
   const pages = page;
   const regParts = [
     biz.companyNumber && `Company no. ${biz.companyNumber}`,
-    biz.vatNumber && `VAT no. ${biz.vatNumber}`,
+    biz.vatRegistered && biz.vatNumber && `VAT no. ${biz.vatNumber}`,
     biz.utr && `UTR ${biz.utr}`,
   ].filter(Boolean) as string[];
   for (let p = 1; p <= pages; p++) {

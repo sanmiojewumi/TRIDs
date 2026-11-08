@@ -4,7 +4,7 @@ import type { Client } from '../src/types';
 
 const mk = (id: string, name: string): Client => ({
   id, name, contact: '', address: '', postcode: '', email: '', phone: '', templateId: 't',
-  refPrefix: 'X', nextNumber: 1, paymentTermsDays: 14, vatRate: 0, cisRate: 0, defaultDescription: '', notes: '',
+  paymentTermsDays: 14, vatRate: 0, cisRate: 0, defaultDescription: '', notes: '',
 });
 const clients = [mk('a', 'Company A'), mk('b', 'Company B'), mk('c', 'Acme Building Ltd')];
 const today = new Date(2026, 10, 8);

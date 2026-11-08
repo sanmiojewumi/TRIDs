@@ -3,7 +3,7 @@ import { addDays, formatWorkDates } from '../src/dates';
 import { buildInvoiceData, validateDraft, emptyDraft } from '../src/invoice';
 import { buildLayout } from '../src/layout';
 import { computeTotals, formatMoney, parsePence } from '../src/money';
-import { defaultPrefix, formatRef, nextRef } from '../src/refs';
+import { formatRef, nextRef } from '../src/refs';
 import { builtInTemplates, emptyBusiness, newClient } from '../src/seed';
 import type { InvoiceRecord } from '../src/types';
 
@@ -34,16 +34,16 @@ describe('money', () => {
 });
 
 describe('references', () => {
-  it('builds prefixes and sequential refs', () => {
-    expect(defaultPrefix('Company A')).toBe('CA');
-    expect(defaultPrefix('Acme')).toBe('ACM');
-    expect(formatRef('ca', 7)).toBe('CA-0007');
+  it('formats the running sequence', () => {
+    expect(formatRef('{n}', 5021)).toBe('5021');
+    expect(formatRef('{postcode} {n}', 5021, 'NE31 2EX')).toBe('NE312EX 5021');
+    expect(formatRef('INV-{n}', 7)).toBe('INV-7');
+    expect(formatRef('{postcode}', 7, '')).toBe('7');
   });
 
-  it('never reuses a ref that is already saved', () => {
-    const client = newClient({ refPrefix: 'CA', nextNumber: 3 });
-    const existing = [{ ref: 'CA-0003' }, { ref: 'CA-0004' }] as InvoiceRecord[];
-    expect(nextRef(client, existing)).toEqual({ ref: 'CA-0005', number: 5 });
+  it('never reuses a ref that is already saved, across clients', () => {
+    const existing = [{ ref: '5021' }, { ref: '5022' }] as InvoiceRecord[];
+    expect(nextRef({ next: 5021, pattern: '{n}' }, 'AB1 2CD', existing)).toEqual({ ref: '5023', number: 5023 });
   });
 });
 
@@ -56,7 +56,7 @@ describe('dates', () => {
 });
 
 describe('invoice + layout', () => {
-  const client = newClient({ name: 'Company A', refPrefix: 'CA', paymentTermsDays: 14, cisRate: 20 });
+  const client = newClient({ name: 'Company A', paymentTermsDays: 14, cisRate: 20 });
   const draft = { ...emptyDraft(client), clientId: client.id, sitePostcode: 'sw1a 1aa', issueDate: '2026-11-08', workDates: ['2026-10-18'] };
   draft.items = [{ description: 'Labour', qty: 1, rate: 45000, materials: false }];
 
@@ -66,24 +66,24 @@ describe('invoice + layout', () => {
   });
 
   it('snapshots dates, postcode and totals', () => {
-    const d = buildInvoiceData(draft, client, builtInTemplates[0], { ...emptyBusiness, name: 'Me' }, { accountName: '', sortCode: '', accountNumber: '' }, 'CA-0001');
+    const d = buildInvoiceData(draft, client, builtInTemplates[0], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '5021');
     expect(d.dueDate).toBe('2026-11-22');
     expect(d.sitePostcode).toBe('SW1A 1AA');
     expect(d.totals.total).toBe(36000);
   });
 
   it.each(builtInTemplates)('lays out the $name template on one page', (tpl) => {
-    const d = buildInvoiceData(draft, client, tpl, { ...emptyBusiness, name: 'Me' }, { accountName: 'Me', sortCode: '00-00-00', accountNumber: '12345678' }, 'CA-0001');
+    const d = buildInvoiceData(draft, client, tpl, { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: 'Me', sortCode: '00-00-00', accountNumber: '12345678' }, '5021');
     const layout = buildLayout(d, measure);
     expect(layout.pages).toBe(1);
     const texts = layout.ops.filter((o) => o.t === 'text').map((o) => (o as { text: string }).text);
-    expect(texts).toContain('CA-0001');
-    expect(texts).toContain('£360.00');
+    expect(texts.some((t) => t.includes('5021'))).toBe(true);
+    expect(texts.some((t) => t.includes('360.00'))).toBe(true);
   });
 
   it('paginates long invoices and keeps every row', () => {
     const items = Array.from({ length: 60 }, (_, i) => ({ description: `Item number ${i + 1} with a longer description to wrap across a line maybe`, qty: 1, rate: 1000, materials: false }));
-    const d = buildInvoiceData({ ...draft, items }, client, builtInTemplates[1], { ...emptyBusiness, name: 'Me' }, { accountName: '', sortCode: '', accountNumber: '' }, 'CA-0002');
+    const d = buildInvoiceData({ ...draft, items }, client, builtInTemplates[1], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, '5022');
     const layout = buildLayout(d, measure);
     expect(layout.pages).toBeGreaterThan(1);
     const rows = layout.ops.filter((o) => o.t === 'text' && /^Item number \d+ /.test((o as { text: string }).text));

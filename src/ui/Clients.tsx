@@ -1,5 +1,4 @@
 import { useState } from 'preact/hooks';
-import { defaultPrefix, formatRef } from '../refs';
 import { newClient } from '../seed';
 import { actions, useStore } from '../store';
 import type { Client } from '../types';
@@ -12,7 +11,6 @@ export function Clients() {
 
   if (editing) {
     const set = (patch: Partial<Client>) => setEditing({ ...editing, ...patch });
-    const prefix = editing.refPrefix || defaultPrefix(editing.name);
     const used = state.invoices.filter((i) => i.clientId === editing.id).length;
     return (
       <section class="page-wrap">
@@ -43,7 +41,7 @@ export function Clients() {
         </div>
 
         <div class="card">
-          <h2>Invoice style and numbering</h2>
+          <h2>Invoice style and terms</h2>
           <label class="field">
             <span>Invoice template</span>
             <select value={editing.templateId} onChange={(e) => set({ templateId: val(e) })}>
@@ -54,29 +52,18 @@ export function Clients() {
               ))}
             </select>
           </label>
-          <div class="grid2">
-            <label class="field">
-              <span>Reference prefix</span>
-              <input value={editing.refPrefix} placeholder={prefix} onInput={(e) => set({ refPrefix: val(e).toUpperCase() })} />
-            </label>
-            <label class="field">
-              <span>Next number</span>
-              <input inputMode="numeric" value={String(editing.nextNumber)} onInput={(e) => set({ nextNumber: Number(val(e).replace(/\D/g, '')) || 1 })} />
-            </label>
-          </div>
-          <p class="hint">
-            Next invoice will be <b>{formatRef(prefix, editing.nextNumber)}</b>
-            {used > 0 && ` (${used} saved so far)`}. Numbers are never reused.
-          </p>
+          {used > 0 && <p class="hint">{used} invoice{used === 1 ? '' : 's'} saved for this client. Numbering is one running sequence, set in Settings.</p>}
           <div class="grid3">
             <label class="field">
               <span>Payment terms (days)</span>
               <input inputMode="numeric" value={String(editing.paymentTermsDays)} onInput={(e) => set({ paymentTermsDays: Number(val(e).replace(/\D/g, '')) || 0 })} />
             </label>
-            <label class="field">
-              <span>VAT %</span>
-              <input inputMode="decimal" value={String(editing.vatRate)} onInput={(e) => set({ vatRate: Math.min(100, Number(val(e)) || 0) })} />
-            </label>
+            {state.business.vatRegistered && (
+              <label class="field">
+                <span>VAT %</span>
+                <input inputMode="decimal" value={String(editing.vatRate)} onInput={(e) => set({ vatRate: Math.min(100, Number(val(e)) || 0) })} />
+              </label>
+            )}
             <label class="field">
               <span>CIS deduction</span>
               <select value={String(editing.cisRate)} onChange={(e) => set({ cisRate: Number(val(e)) })}>
@@ -154,7 +141,7 @@ export function Clients() {
               <div>
                 <strong>{c.name}</strong>
                 <div class="muted">
-                  {state.templates.find((t) => t.id === c.templateId)?.name ?? 'Template'} | next {formatRef(c.refPrefix, c.nextNumber)}
+                  {state.templates.find((t) => t.id === c.templateId)?.name ?? 'Template'} template
                 </div>
               </div>
               <span class="chev">Edit</span>

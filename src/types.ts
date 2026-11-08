@@ -1,4 +1,4 @@
-export type LayoutStyle = 'classic' | 'banded' | 'minimal';
+export type LayoutStyle = 'tradehelp' | 'classic' | 'banded' | 'minimal';
 
 export interface Template {
   id: string;
@@ -6,6 +6,8 @@ export interface Template {
   layout: LayoutStyle;
   accent: string;
   title: string;
+  /** Text under the title (tradehelp layout). {phone} is replaced with the business phone. */
+  intro: string;
   showQtyRate: boolean;
   showLogo: boolean;
   showBankDetails: boolean;
@@ -23,8 +25,6 @@ export interface Client {
   email: string;
   phone: string;
   templateId: string;
-  refPrefix: string;
-  nextNumber: number;
   paymentTermsDays: number;
   vatRate: number;
   cisRate: number;
@@ -45,6 +45,7 @@ export interface Business {
   logo: string;
   /** width / height of the logo image. */
   logoRatio: number;
+  vatRegistered: boolean;
 }
 
 export interface Bank {
@@ -75,6 +76,7 @@ export interface Totals {
 
 export interface ClientSnapshot {
   name: string;
+  phone?: string;
   contact: string;
   address: string;
   postcode: string;
@@ -93,6 +95,8 @@ export interface InvoiceData {
   customerRef: string;
   notes: string;
   items: LineItem[];
+  /** Amount already paid, in pence. */
+  paid?: number;
   totals: Totals;
   client: ClientSnapshot;
   business: Business;
@@ -110,8 +114,16 @@ export interface InvoiceRecord {
   data: InvoiceData;
 }
 
+export interface Numbering {
+  /** Next number in the single running sequence. */
+  next: number;
+  /** Tokens: {n} sequence number, {postcode} client postcode without spaces, {year}. */
+  pattern: string;
+}
+
 export interface AppState {
   version: 1;
+  numbering: Numbering;
   business: Business;
   bank: Bank;
   templates: Template[];
@@ -130,4 +142,6 @@ export interface Draft {
   customerRef: string;
   notes: string;
   items: LineItem[];
+  /** Amount already paid, in pence. */
+  paid: number;
 }
