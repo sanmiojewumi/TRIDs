@@ -17,6 +17,8 @@ const MONTHS = [
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const COMPANY_SUFFIX = /\b(ltd|limited|plc|llp|inc|co|company|group|services|contractors|construction|building|builders)\b/g;
 
+const SUFFIX_WORD = /^(ltd|limited|plc|llp|inc|company|group|services|contractors|construction|building|builders)$/;
+
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 function coreName(name: string): string {
@@ -34,7 +36,15 @@ export function matchClient(text: string, clients: Client[]): Client | undefined
     else if (core.length >= 2 && flat.includes(core)) score = core.length + 50;
     if (score && (!best || score > best.score)) best = { client, score };
   }
-  return best?.client;
+  if (best) return best.client;
+
+  // Fall back to a unique distinctive word from the name ("Preferred" for "Preferred Management Solution Ltd").
+  const words = new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const hits = clients.filter((c) => {
+    const first = c.name.toLowerCase().split(/[^a-z0-9]+/).find((w) => w.length >= 4 && !SUFFIX_WORD.test(w));
+    return first && words.has(first);
+  });
+  return hits.length === 1 ? hits[0] : undefined;
 }
 
 function monthIndex(word: string): number {

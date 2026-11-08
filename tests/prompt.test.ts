@@ -57,4 +57,14 @@ describe('parsePrompt', () => {
     expect(r.workDates).toEqual(['2026-10-18']);
     expect(parsePrompt('company b, 7 Mill Lane, Bradford, BD1 1AA', clients, today).siteAddress).toBe('7 Mill Lane, Bradford');
   });
+
+  it('matches a client by its first distinctive word', () => {
+    const list = [mk('p', 'Preferred Management Solution Ltd'), mk('a', 'Company A')];
+    const r = parsePrompt('Preferred, work done on the 3rd, ST6 5EP, 471 High Street Stoke-on-Trent, £210', list, today);
+    expect(r.clientId).toBe('p');
+    expect(r.amount).toBe(21000);
+    expect(r.sitePostcode).toBe('ST6 5EP');
+    expect(r.siteAddress).toBe('471 High Street Stoke-on-Trent');
+    expect(r.workDates).toEqual(['2026-11-03']);
+  });
 });
