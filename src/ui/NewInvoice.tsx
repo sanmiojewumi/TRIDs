@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatWorkDates, todayISO } from '../dates';
 import { buildInvoiceData, emptyDraft, validateDraft } from '../invoice';
-import { formatMoney, lineTotal, parsePence, penceToInput } from '../money';
+import { formatMoney, lineTotal } from '../money';
 import { DEFAULT_DESCRIPTION } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
 import { nextRef } from '../refs';
 import { actions, templateFor, useStore } from '../store';
 import type { Draft, InvoiceRecord, LineItem } from '../types';
+import { MoneyField } from './MoneyField';
 import { Preview } from './Preview';
 import { val } from './util';
 
@@ -152,7 +153,6 @@ export function NewInvoice() {
 
   const businessMissing = !state.business.name;
   const single = !detailed;
-  const amount = draft.items[0] ? penceToInput(draft.items[0].rate) : '';
 
   return (
     <section class="page-wrap">
@@ -259,12 +259,7 @@ export function NewInvoice() {
           <div class="grid2">
             <label class="field">
               <span>{state.business.vatRegistered ? 'Amount (£, before VAT)' : 'Amount (£)'}</span>
-              <input
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onInput={(e) => updateItem(0, { rate: parsePence(val(e)), qty: 1 })}
-              />
+              <MoneyField pence={draft.items[0]?.rate ?? 0} onPence={(rate) => updateItem(0, { rate, qty: 1 })} />
             </label>
             <label class="field">
               <span>Description</span>
@@ -284,7 +279,7 @@ export function NewInvoice() {
                   </label>
                   <label>
                     Unit price £
-                    <input inputMode="decimal" value={penceToInput(it.rate)} onInput={(e) => updateItem(i, { rate: parsePence(val(e)) })} />
+                    <MoneyField pence={it.rate} onPence={(rate) => updateItem(i, { rate })} />
                   </label>
                   <div class="item-total">{formatMoney(lineTotal(it))}</div>
                 </div>
@@ -330,7 +325,7 @@ export function NewInvoice() {
             </div>
             <label class="field">
               <span>Already paid (£)</span>
-              <input inputMode="decimal" placeholder="0.00" value={penceToInput(draft.paid)} onInput={(e) => setDraft({ paid: parsePence(val(e)) })} />
+              <MoneyField pence={draft.paid} onPence={(paid) => setDraft({ paid })} />
             </label>
             <label class="field">
               <span>Notes (shown on the invoice)</span>
