@@ -46,6 +46,9 @@ npm run build:single   # one self-contained file: dist-single/index.html
 2. **Single file**: `npm run build:single`, copy `dist-single/index.html` to the phone and open it in Chrome (Android).
    Works fully offline.
 3. **Move data between devices** at any time: Settings > Export backup, then Import backup on the other device.
+4. **Android app**: install `releases/Invoice-Desk.apk` (Settings, then allow install from this source). It works with no Wi-Fi.
+   Saving a PDF opens the Android share sheet, so you can save it to Files or send it. Rebuilding needs the Android SDK,
+   `android/keystore.properties` (not in git) and `npm run android:apk`.
 
 If you later want it available away from your Wi-Fi, host the `dist/` folder privately (for example behind Tailscale or
 Cloudflare Access). The app itself never uploads data, so this is optional.

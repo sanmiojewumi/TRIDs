@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatMoney } from '../money';
 import { pdfFileName, renderPdf, renderSvgPages } from '../render';
 import type { InvoiceData, InvoiceRecord } from '../types';
-import { canShareFile, downloadBlob, shareBlob } from './util';
+import { canShareFile, downloadBlob, isNativeApp, shareBlob } from './util';
 
 interface Props {
   data: InvoiceData;
@@ -60,12 +60,15 @@ export function Preview(props: Props) {
     }
   };
 
-  const download = () => {
+  const download = async () => {
     setBusy(true);
+    setError('');
     try {
       const d = issueIfNeeded();
       if (!d) return;
-      downloadBlob(renderPdf(d), pdfFileName(d));
+      await downloadBlob(renderPdf(d), pdfFileName(d));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the PDF.');
     } finally {
       setBusy(false);
     }
@@ -104,7 +107,7 @@ export function Preview(props: Props) {
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
         <div class="row wrap">
           <button class="btn primary grow" disabled={busy} onClick={download}>
-            {draft ? 'Save & download PDF' : 'Download PDF'}
+            {isNativeApp() ? (draft ? 'Save & share PDF' : 'Share PDF') : draft ? 'Save & download PDF' : 'Download PDF'}
           </button>
           {canShare && (
             <button class="btn" onClick={share}>

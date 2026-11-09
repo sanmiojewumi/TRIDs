@@ -12,13 +12,20 @@
     "test": "vitest run",
     "icons": "node scripts/make-icons.mjs",
     "build:single": "tsc --noEmit && SINGLE_FILE=1 vite build",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "serve": "npm run build && vite preview --host --port 4173"
   },
   "dependencies": {
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/share": "^8.0.3",
     "jspdf": "^4.2.1",
     "preact": "^11.2.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",

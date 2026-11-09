@@ -165,8 +165,9 @@ export function Settings() {
           <button
             class="btn"
             onClick={() => {
-              downloadBlob(new Blob([actions.exportJSON()], { type: 'application/json' }), backupFileName());
-              setMsg('Backup downloaded.');
+              void downloadBlob(new Blob([actions.exportJSON()], { type: 'application/json' }), backupFileName())
+                .then(() => setMsg('Backup downloaded.'))
+                .catch((err: unknown) => setMsg(err instanceof Error ? err.message : 'Could not save the backup.'));
             }}
           >
             Export backup

@@ -1,7 +1,42 @@
 
 export const val = (e: Event) => (e.target as HTMLInputElement).value;
 
-export function downloadBlob(blob: Blob, filename: string) {
+export function isNativeApp(): boolean {
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+  return !!cap?.isNativePlatform?.();
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return blob.arrayBuffer().then((buf) => {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+  });
+}
+
+/** On the Android app, hand the file to the system share sheet so it can be saved or sent. */
+async function handOffNative(blob: Blob, filename: string, title: string) {
+  const { Directory, Filesystem } = await import('@capacitor/filesystem');
+  const { Share } = await import('@capacitor/share');
+  const safe = filename.replace(/[\\/]/g, '-');
+  await Filesystem.writeFile({ path: safe, data: await blobToBase64(blob), directory: Directory.Cache });
+  const { uri } = await Filesystem.getUri({ path: safe, directory: Directory.Cache });
+  try {
+    await Share.share({ title, files: [uri], dialogTitle: title });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/cancel/i.test(msg)) throw e;
+  }
+}
+
+export async function downloadBlob(blob: Blob, filename: string) {
+  if (isNativeApp()) {
+    await handOffNative(blob, filename, filename);
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -22,6 +57,10 @@ export function canShareFile(blob: Blob, filename: string): boolean {
 }
 
 export async function shareBlob(blob: Blob, filename: string, title: string) {
+  if (isNativeApp()) {
+    await handOffNative(blob, filename, title);
+    return;
+  }
   const file = new File([blob], filename, { type: 'application/pdf' });
   try {
     await navigator.share({ files: [file], title });
