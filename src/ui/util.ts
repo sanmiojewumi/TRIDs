@@ -17,6 +17,20 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+/** On the Android app, open the system save screen so the user can pick the folder. */
+async function saveNative(blob: Blob, filename: string): Promise<boolean> {
+  const { registerPlugin } = await import('@capacitor/core');
+  const SavePdf = registerPlugin<{
+    save(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean }>;
+  }>('SavePdf');
+  const { saved } = await SavePdf.save({
+    filename: filename.replace(/[\\/]/g, '-'),
+    data: await blobToBase64(blob),
+    mime: blob.type || 'application/octet-stream',
+  });
+  return saved;
+}
+
 /** On the Android app, hand the file to the system share sheet so it can be saved or sent. */
 async function handOffNative(blob: Blob, filename: string, title: string) {
   const { Directory, Filesystem } = await import('@capacitor/filesystem');
@@ -32,11 +46,8 @@ async function handOffNative(blob: Blob, filename: string, title: string) {
   }
 }
 
-export async function downloadBlob(blob: Blob, filename: string) {
-  if (isNativeApp()) {
-    await handOffNative(blob, filename, filename);
-    return;
-  }
+export async function downloadBlob(blob: Blob, filename: string): Promise<boolean> {
+  if (isNativeApp()) return saveNative(blob, filename);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -45,6 +56,7 @@ export async function downloadBlob(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return true;
 }
 
 export function canShareFile(blob: Blob, filename: string): boolean {

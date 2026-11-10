@@ -20,6 +20,7 @@ interface Props {
 export function Preview(props: Props) {
   const [record, setRecord] = useState(props.record);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const data = record?.data ?? props.data;
   const pages = useMemo(() => renderSvgPages(data), [data]);
@@ -63,10 +64,12 @@ export function Preview(props: Props) {
   const download = async () => {
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       const d = issueIfNeeded();
       if (!d) return;
-      await downloadBlob(renderPdf(d), pdfFileName(d));
+      const saved = await downloadBlob(renderPdf(d), pdfFileName(d));
+      if (saved && isNativeApp()) setNotice('PDF saved to the folder you chose.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the PDF.');
     } finally {
@@ -104,13 +107,15 @@ export function Preview(props: Props) {
       </div>
       <footer class="overlay-actions">
         {error && <div class="error">{error}</div>}
+        {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
-        <div class="row wrap">
+        {isNativeApp() && <p class="hint center">Download opens your phone's save screen so you can pick the folder.</p>}
+        <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
-            {isNativeApp() ? (draft ? 'Save & share PDF' : 'Share PDF') : draft ? 'Save & download PDF' : 'Download PDF'}
+            {draft ? 'Save & download PDF' : 'Download PDF'}
           </button>
-          {canShare && (
-            <button class="btn" onClick={share}>
+          {(isNativeApp() || canShare) && (
+            <button class="btn grow" disabled={busy} onClick={share}>
               Share
             </button>
           )}
