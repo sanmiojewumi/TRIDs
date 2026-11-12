@@ -38,10 +38,31 @@ export function telHref(phone: string): string | null {
   return `tel:${cleaned}`;
 }
 
-export function mapsUrl(lat: number, lng: number): string {
+export type Satnav = "google" | "waze" | "apple";
+
+export const SATNAVS: { id: Satnav; label: string }[] = [
+  { id: "google", label: "Google Maps" },
+  { id: "waze", label: "Waze" },
+  { id: "apple", label: "Apple Maps" },
+];
+
+export function satnavUrl(kind: Satnav, lat: number, lng: number): string {
+  const latlng = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+  if (kind === "waze") {
+    const url = new URL("https://waze.com/ul");
+    url.searchParams.set("ll", latlng);
+    url.searchParams.set("navigate", "yes");
+    return url.toString();
+  }
+  if (kind === "apple") {
+    const url = new URL("https://maps.apple.com/");
+    url.searchParams.set("daddr", latlng);
+    url.searchParams.set("dirflg", "d");
+    return url.toString();
+  }
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
-  url.searchParams.set("destination", `${lat.toFixed(6)},${lng.toFixed(6)}`);
+  url.searchParams.set("destination", latlng);
   url.searchParams.set("travelmode", "driving");
   return url.toString();
 }

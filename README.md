@@ -10,4 +10,8 @@ npm test
 npm run dev
 ```
 
-Signed-in use stores routes in the app database. Without a sign-in, routes stay in the browser.
+Signed-in use stores every day in the app database, including days you mark saved. Without a sign-in, those records stay in the browser.
+
+Navigate hands the next stop to Google Maps, Waze, or Apple Maps. Choose the satnav in the bar at the bottom of the route.
+
+On a phone, open the published page and install it from the browser. Android can use Install app. iPhone uses Safari, Share, Add to Home Screen. Apple does not install an unsigned app file, so that home-screen icon is the iPhone app.

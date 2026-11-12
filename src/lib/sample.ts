@@ -95,6 +95,8 @@ export function samplePlan(): RoutePlan {
     endLng: null,
     endTime: "",
     defaultServiceMin: 5,
+    status: "open",
+    completedAt: null,
     stops,
     breaks: [
       {

@@ -207,6 +207,11 @@ export function validatePlan(value: unknown): RoutePlan | null {
     endLng: end?.lng ?? null,
     endTime: CLOCK.test(endTime) ? endTime : "",
     defaultServiceMin: Math.min(240, Math.max(0, Math.round(service))),
+    status: raw.status === "completed" ? "completed" : "open",
+    completedAt:
+      raw.status === "completed" && typeof raw.completedAt === "string" && Number.isFinite(Date.parse(raw.completedAt))
+        ? new Date(raw.completedAt).toISOString()
+        : null,
     stops,
     breaks,
     sequence,

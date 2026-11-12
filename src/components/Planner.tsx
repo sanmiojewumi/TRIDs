@@ -11,16 +11,19 @@ import {
   formatDistance,
   formatDuration,
   formatWhen,
-  mapsUrl,
+  SATNAVS,
+  satnavUrl,
   routeTitle,
   telHref,
   todayISO,
   type DistanceUnit,
+  type Satnav,
 } from "@/lib/format";
 import { parseClock } from "@/lib/optimize";
 import { parseStopLines } from "@/lib/parseStops";
-import { blankStop, reschedulePlan } from "@/lib/plan";
+import { blankStop, freshCopy, reschedulePlan } from "@/lib/plan";
 import { samplePlan } from "@/lib/sample";
+import { InstallCard } from "@/components/InstallCard";
 import type { Place, RouteBreak, RoutePlan, RouteResult, Stop, StopStatus } from "@/lib/types";
 import { validatePlan } from "@/lib/validate";
 
@@ -47,8 +50,10 @@ function emptyPlan(): RoutePlan {
     endLat: null,
     endLng: null,
     endTime: "",
-    defaultServiceMin: 5,
-    stops: [],
+  defaultServiceMin: 5,
+  status: "open",
+  completedAt: null,
+  stops: [],
     breaks: [],
     sequence: [],
     result: null,
@@ -107,6 +112,7 @@ export default function Planner() {
   const [banner, setBanner] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [unit, setUnit] = useState<DistanceUnit>("km");
+  const [satnav, setSatnav] = useState<Satnav>("google");
   const [draft, setDraft] = useState<Stop | null>(null);
   const [draftIsNew, setDraftIsNew] = useState(false);
   const [paste, setPaste] = useState("");
@@ -124,6 +130,8 @@ export default function Planner() {
   useEffect(() => {
     const storedUnit = localStorage.getItem(UNIT_KEY);
     setUnit(storedUnit === "mi" || storedUnit === "km" ? storedUnit : defaultUnit());
+    const storedNav = localStorage.getItem("trids.satnav");
+    if (storedNav === "google" || storedNav === "waze" || storedNav === "apple") setSatnav(storedNav);
     void (async () => {
       try {
         await api("/api/me");
@@ -298,6 +306,10 @@ export default function Planner() {
   const orderedStops = active ? active.sequence.map((id) => active.stops.find((stop) => stop.id === id)).filter((stop): stop is Stop => stop != null) : [];
   const pendingStops = orderedStops.filter((stop) => stop.status === "pending");
   const nextStop = pendingStops.find((stop) => stop.lat != null && stop.lng != null);
+  const navLabel = SATNAVS.find((item) => item.id === satnav)?.label ?? "Google Maps";
+  const openPlans = plans.filter((plan) => plan.status !== "completed").sort((a, b) => b.date.localeCompare(a.date));
+  const savedPlans = plans.filter((plan) => plan.status === "completed").sort((a, b) => b.date.localeCompare(a.date));
+  const locked = active?.status === "completed";
 
   return (
     <div className="app">
@@ -327,23 +339,35 @@ export default function Planner() {
               >
                 Try a sample day
               </button>
-              {plans.map((plan) => (
-                <button
+              <p className="menu-label">Open days</p>
+              {openPlans.length === 0 ? <p className="quiet">No open day yet.</p> : null}
+              {openPlans.map((plan) => (
+                <RouteRow
                   key={plan.id}
-                  type="button"
-                  className={plan.id === activeId ? "route-row active" : "route-row"}
-                  onClick={() => {
+                  plan={plan}
+                  active={plan.id === activeId}
+                  onOpen={() => {
                     setActiveId(plan.id);
                     setDraft(null);
                     closeMenu();
                   }}
-                >
-                  {plan.name}
-                  <small>
-                    {formatWhen(plan.date)} · {plan.stops.length} stops
-                  </small>
-                </button>
+                />
               ))}
+              <p className="menu-label">Saved days</p>
+              {savedPlans.length === 0 ? <p className="quiet">Finished days stay here after you save them.</p> : null}
+              {savedPlans.map((plan) => (
+                <RouteRow
+                  key={plan.id}
+                  plan={plan}
+                  active={plan.id === activeId}
+                  onOpen={() => {
+                    setActiveId(plan.id);
+                    setDraft(null);
+                    closeMenu();
+                  }}
+                />
+              ))}
+              <InstallCard />
               {active ? (
                 <>
                   <button
@@ -363,24 +387,17 @@ export default function Planner() {
                           openPlan(route);
                           return;
                         }
-                        const copy: RoutePlan = {
-                          ...active,
-                          id: crypto.randomUUID(),
-                          name: `${active.name} copy`.slice(0, 80),
-                          stops: active.stops.map((stop) => ({ ...stop })),
-                          breaks: active.breaks.map((item) => ({ ...item })),
-                        };
-                        openPlan(copy);
+                        openPlan(freshCopy(active));
                       })();
                     }}
                   >
-                    Duplicate this route
+                    {active.status === "completed" ? "Run this day again" : "Duplicate this route"}
                   </button>
                   <button
                     type="button"
                     className="danger"
                     onClick={() => {
-                      if (!active || !window.confirm(`Delete ${active.name}?`)) return;
+                      if (!active || !window.confirm(`Delete ${active.name}? This removes the saved day.`)) return;
                       const id = active.id;
                       setPlans((current) => current.filter((plan) => plan.id !== id));
                       setActiveId((current) => (current === id ? null : current));
@@ -423,6 +440,15 @@ export default function Planner() {
           ) : null}
           {active ? (
             <>
+              {locked ? (
+                <p className="record">
+                  Saved day
+                  {active.completedAt
+                    ? ` · ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(active.completedAt))}`
+                    : ""}
+                  . {active.stops.filter((stop) => stop.status === "done").length} of {active.stops.length} stops done.
+                </p>
+              ) : null}
               <input
                 className="route-name"
                 aria-label="Route name"
@@ -601,7 +627,7 @@ export default function Planner() {
                     setStale((current) => ({ ...current, [active.id]: true }));
                   }}
                 />
-              ) : (
+              ) : locked ? null : (
                 <button
                   type="button"
                   className="primary"
@@ -648,6 +674,7 @@ export default function Planner() {
                       <div className="stop-actions">
                         <button
                           type="button"
+                          disabled={locked}
                           onClick={() => {
                             setDraft({ ...stop });
                             setDraftIsNew(false);
@@ -656,12 +683,16 @@ export default function Planner() {
                           Edit
                         </button>
                         {phone ? <a href={phone}>Call</a> : null}
-                        {stop.lat != null && stop.lng != null ? <a href={mapsUrl(stop.lat, stop.lng)}>Navigate</a> : null}
+                        {stop.lat != null && stop.lng != null ? (
+                          <a href={satnavUrl(satnav, stop.lat, stop.lng)} target="_blank" rel="noopener noreferrer">
+                            {navLabel}
+                          </a>
+                        ) : null}
                         {stop.status === "pending" ? (
                           <>
                             <button
                               type="button"
-                              disabled={pendingIndex <= 0 || busy}
+                              disabled={locked || pendingIndex <= 0 || busy}
                               onClick={() => {
                                 const next = reorderPending(active, stop.id, pendingIndex - 1);
                                 commit(active.id, () => next);
@@ -672,7 +703,7 @@ export default function Planner() {
                             </button>
                             <button
                               type="button"
-                              disabled={pendingIndex < 0 || pendingIndex >= pendingStops.length - 1 || busy}
+                              disabled={locked || pendingIndex < 0 || pendingIndex >= pendingStops.length - 1 || busy}
                               onClick={() => {
                                 const next = reorderPending(active, stop.id, pendingIndex + 1);
                                 commit(active.id, () => next);
@@ -683,6 +714,7 @@ export default function Planner() {
                             </button>
                             <button
                               type="button"
+                              disabled={locked}
                               onClick={() =>
                                 commit(active.id, (plan) =>
                                   reschedulePlan(
@@ -701,6 +733,7 @@ export default function Planner() {
                             </button>
                             <button
                               type="button"
+                              disabled={locked}
                               onClick={() => {
                                 const next: RoutePlan = {
                                   ...active,
@@ -718,6 +751,7 @@ export default function Planner() {
                         ) : (
                           <button
                             type="button"
+                            disabled={locked}
                             onClick={() =>
                               commit(active.id, (plan) => ({
                                 ...plan,
@@ -753,6 +787,7 @@ export default function Planner() {
                         {item.status === "pending" ? (
                           <button
                             type="button"
+                            disabled={locked}
                             onClick={() =>
                               commit(active.id, (plan) =>
                                 reschedulePlan(
@@ -772,6 +807,7 @@ export default function Planner() {
                         ) : (
                           <button
                             type="button"
+                            disabled={locked}
                             onClick={() =>
                               commit(active.id, (plan) => ({
                                 ...plan,
@@ -789,7 +825,7 @@ export default function Planner() {
                   </article>
                 );
               })}
-              {showBreak ? (
+              {locked ? null : showBreak ? (
                 <BreakForm
                   onCancel={() => setShowBreak(false)}
                   onAdd={(item) => {
@@ -804,8 +840,8 @@ export default function Planner() {
                 </button>
               )}
 
-              <h2 className="section-title">Paste a list</h2>
-              {showPaste ? (
+              {locked ? null : <h2 className="section-title">Paste a list</h2>}
+              {locked ? null : showPaste ? (
                 <div className="card">
                   <p className="quiet">One stop per line: Name, Address, Phone, Notes</p>
                   <textarea className="paste" value={paste} onChange={(event) => setPaste(event.target.value)} />
@@ -845,7 +881,8 @@ export default function Planner() {
               )}
               <p className="foot">
                 Address search uses OpenStreetMap. Drive times follow the road network and do not include live traffic.
-                Navigate opens Google Maps for the turn-by-turn leg. {mode === "browser" ? "This browser is keeping the routes until you are signed in." : "Routes are stored on your account."}
+                Navigate hands the next stop to {navLabel}. Saved days stay in your schedule history.
+                {mode === "browser" ? " This browser is keeping the routes until you are signed in." : " Routes are stored on your account."}
               </p>
             </>
           ) : null}
@@ -861,17 +898,56 @@ export default function Planner() {
             ) : (
               <p className="quiet">Add the stops, then optimize.</p>
             )}
-            <button
-              type="button"
-              className="primary"
-              disabled={busy || active.stops.every((stop) => stop.status !== "pending") || active.startAddress.trim().length < 3}
-              onClick={() => void runOptimize(active, false)}
-            >
-              {busy ? "Optimizing…" : active.result ? "Reoptimize" : "Optimize route"}
-            </button>
+            <div className="satnav" role="group" aria-label="Satnav">
+              {SATNAVS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={satnav === item.id ? "on" : ""}
+                  onClick={() => {
+                    setSatnav(item.id);
+                    localStorage.setItem("trids.satnav", item.id);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            {locked ? (
+              <button
+                type="button"
+                onClick={() => openPlan(freshCopy(active))}
+              >
+                Run this day again
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || active.stops.every((stop) => stop.status !== "pending") || active.startAddress.trim().length < 3}
+                onClick={() => void runOptimize(active, false)}
+              >
+                {busy ? "Optimizing…" : active.result ? "Reoptimize" : "Optimize route"}
+              </button>
+            )}
+            {locked ? null : (
+              <button
+                type="button"
+                disabled={active.stops.length === 0}
+                onClick={() =>
+                  commit(active.id, (plan) => ({
+                    ...plan,
+                    status: "completed",
+                    completedAt: new Date().toISOString(),
+                  }))
+                }
+              >
+                Save this day
+              </button>
+            )}
             {nextStop ? (
-              <a className="ghost" href={mapsUrl(nextStop.lat as number, nextStop.lng as number)}>
-                Navigate to {nextStop.clientName || "next stop"}
+              <a className="ghost" href={satnavUrl(satnav, nextStop.lat as number, nextStop.lng as number)} target="_blank" rel="noopener noreferrer">
+                Navigate to {nextStop.clientName || "next stop"} in {navLabel}
               </a>
             ) : null}
           </div>
@@ -1115,5 +1191,18 @@ function BreakForm({ onAdd, onCancel }: { onAdd: (item: RouteBreak) => void; onC
         </button>
       </div>
     </form>
+  );
+}
+
+function RouteRow({ plan, active, onOpen }: { plan: RoutePlan; active: boolean; onOpen: () => void }) {
+  const done = plan.stops.filter((stop) => stop.status === "done").length;
+  return (
+    <button type="button" className={active ? "route-row active" : "route-row"} onClick={onOpen}>
+      {plan.name}
+      <small>
+        {formatWhen(plan.date)} · {done}/{plan.stops.length} done
+        {plan.status === "completed" ? " · saved" : ""}
+      </small>
+    </button>
   );
 }

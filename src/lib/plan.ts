@@ -124,6 +124,19 @@ export function reschedulePlan(plan: RoutePlan, nowSec: number): RoutePlan {
   };
 }
 
+export function freshCopy(plan: RoutePlan): RoutePlan {
+  return {
+    ...plan,
+    id: crypto.randomUUID(),
+    name: `${plan.name} again`.slice(0, 80),
+    status: "open",
+    completedAt: null,
+    result: null,
+    stops: plan.stops.map((stop) => ({ ...stop, status: "pending" })),
+    breaks: plan.breaks.map((item) => ({ ...item, status: "pending" })),
+  };
+}
+
 export function blankStop(serviceMin: number): Stop {
   return {
     id: crypto.randomUUID(),

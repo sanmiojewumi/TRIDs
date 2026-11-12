@@ -63,10 +63,14 @@ export type RouteResult = {
   enteredLateSec: number | null;
 };
 
+export type DayStatus = "open" | "completed";
+
 export type RoutePlan = {
   id: string;
   name: string;
   date: string;
+  status: DayStatus;
+  completedAt: string | null;
   startAddress: string;
   startLat: number | null;
   startLng: number | null;

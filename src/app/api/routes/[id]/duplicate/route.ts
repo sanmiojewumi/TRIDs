@@ -1,6 +1,6 @@
 import { json, viewer } from "@/lib/auth";
 import { sql } from "@/lib/db";
-import type { RoutePlan } from "@/lib/types";
+import { freshCopy } from "@/lib/plan";
 import { validatePlan } from "@/lib/validate";
 
 export const runtime = "nodejs";
@@ -28,11 +28,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
   const plan = payload ? validatePlan(payload) : null;
   if (!plan) return json({ error: "Route not found." }, 404);
-  const copy: RoutePlan = {
-    ...plan,
-    id: crypto.randomUUID(),
-    name: `${plan.name} copy`.slice(0, 80),
-  };
+  const copy = freshCopy(plan);
   await sql(
     "insert into routes (id, owner, name, route_date, payload) values ($1, $2, $3, $4, $5::jsonb)",
     [copy.id, who.owner, copy.name, copy.date, JSON.stringify(copy)],
