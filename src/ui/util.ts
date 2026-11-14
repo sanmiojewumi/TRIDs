@@ -2,8 +2,10 @@
 export const val = (e: Event) => (e.target as HTMLInputElement).value;
 
 export function isNativeApp(): boolean {
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return !!cap?.isNativePlatform?.();
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
+  if (cap?.isNativePlatform?.()) return true;
+  const platform = cap?.getPlatform?.();
+  return platform === 'android' || platform === 'ios';
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -19,6 +21,7 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 interface SavePdfPlugin {
   toDownloads(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string }>;
+  save(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean }>;
   folder(): Promise<{ connected: boolean; name?: string }>;
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
@@ -125,30 +128,35 @@ async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile>
   return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
 }
 
+/** Opens the phone's save screen so the PDF is written into a folder the user can open. */
+async function saveWithPhoneDialog(blob: Blob, filename: string): Promise<StoredFile> {
+  const SavePdf = await savePdfPlugin();
+  const { saved } = await SavePdf.save({
+    filename: safeName(filename),
+    data: await blobToBase64(blob),
+    mime: 'application/pdf',
+  });
+  return { saved, where: saved ? `your phone / ${safeName(filename)}` : undefined };
+}
+
 /** Download into the folder chosen for invoices. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
   if (isNativeApp()) {
-    let folder = await connectedFolder();
-    if (!folder) folder = await connectFolder();
-    if (!folder) return { saved: false };
-    const SavePdf = await savePdfPlugin();
-    try {
-      const saved = await SavePdf.saveToFolder({
-        filename: safeName(filename),
-        data: await blobToBase64(blob),
-        mime: blob.type || 'application/octet-stream',
-      });
-      return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
-    } catch (e) {
-      const again = await connectFolder();
-      if (!again) throw e;
-      const saved = await SavePdf.saveToFolder({
-        filename: safeName(filename),
-        data: await blobToBase64(blob),
-        mime: blob.type || 'application/octet-stream',
-      });
-      return { saved: true, where: `${saved.name || again}/${saved.file || safeName(filename)}` };
+    const folder = await connectedFolder();
+    if (folder) {
+      const SavePdf = await savePdfPlugin();
+      try {
+        const saved = await SavePdf.saveToFolder({
+          filename: safeName(filename),
+          data: await blobToBase64(blob),
+          mime: 'application/pdf',
+        });
+        return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
+      } catch {
+        /* The remembered folder could not be written. Ask for a folder on the phone. */
+      }
     }
+    return saveWithPhoneDialog(blob, filename);
   }
   if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);

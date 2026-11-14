@@ -167,7 +167,7 @@ export function Settings() {
           <p class="hint">
             {folder
               ? `Finished invoices are saved in ${folder}. Download uses this folder.`
-              : 'Choose any folder, such as Trids apps in Internal storage. Download saves every finished invoice there.'}
+              : 'Choose a folder on your phone, such as Internal storage / Trids apps. Open it, tap Use this folder, and download will save the PDF there.'}
           </p>
           <button
             class="btn"

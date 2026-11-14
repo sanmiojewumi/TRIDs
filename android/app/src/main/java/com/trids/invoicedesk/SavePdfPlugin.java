@@ -53,9 +53,11 @@ public class SavePdfPlugin extends Plugin {
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         );
+        intent.putExtra("android.content.extra.SHOW_ADVANCED", true);
         if (Build.VERSION.SDK_INT >= 26) {
-            intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Choose the folder invoices are saved in");
-            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.externalstorage.documents/document/primary:"));
+            intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Open your folder, then tap Use this folder");
+            String stored = prefs().getString(TREE, null);
+            if (stored != null) intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(stored));
         }
         startActivityForResult(call, intent, "onFolderPicked");
     }
@@ -70,10 +72,18 @@ public class SavePdfPlugin extends Plugin {
             return;
         }
         Uri tree = result.getData().getData();
-        final int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-        getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+        int flags = result.getData().getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        if (flags == 0) flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        try {
+            getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+        } catch (Exception ignored) {
+            /* The folder can still be used for this save. */
+        }
         prefs().edit().putString(TREE, tree.toString()).apply();
-        call.resolve(folderStatus());
+        JSObject status = new JSObject();
+        status.put("connected", true);
+        status.put("name", folderName(tree));
+        call.resolve(status);
     }
 
     @PluginMethod
@@ -95,7 +105,7 @@ public class SavePdfPlugin extends Plugin {
             prefs().edit().remove(TREE).apply();
             call.reject("That folder needs to be chosen again.");
         } catch (Exception e) {
-            call.reject("Could not save into the chosen folder");
+            call.reject(e.getMessage() == null ? "Could not save into the chosen folder" : e.getMessage());
         }
     }
 
@@ -110,9 +120,9 @@ public class SavePdfPlugin extends Plugin {
             ret.put("connected", false);
             return ret;
         }
-        String name = "chosen folder";
+        Uri tree = Uri.parse(stored);
+        String name = folderName(tree);
         try {
-            Uri tree = Uri.parse(stored);
             Uri doc = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
             try (Cursor cursor = getContext().getContentResolver().query(
                 doc,
@@ -123,13 +133,29 @@ public class SavePdfPlugin extends Plugin {
             )) {
                 if (cursor != null && cursor.moveToFirst() && cursor.getString(0) != null) name = cursor.getString(0);
             }
-            ret.put("connected", true);
-            ret.put("name", name);
-        } catch (Exception e) {
-            prefs().edit().remove(TREE).apply();
-            ret.put("connected", false);
+        } catch (Exception ignored) {
+            /* Keep the folder even when its display name cannot be read. */
         }
+        ret.put("connected", true);
+        ret.put("name", name);
         return ret;
+    }
+
+    private String folderName(Uri tree) {
+        try {
+            String id = DocumentsContract.getTreeDocumentId(tree);
+            if (id != null) {
+                int colon = id.indexOf(':');
+                String path = colon >= 0 ? id.substring(colon + 1) : id;
+                if (path.isEmpty()) return "Internal storage";
+                int slash = path.lastIndexOf('/');
+                String last = slash >= 0 ? path.substring(slash + 1) : path;
+                if (!last.isEmpty()) return last;
+            }
+        } catch (Exception ignored) {
+            /* Fall through to a plain name. */
+        }
+        return "chosen folder";
     }
 
     private String writeIntoTree(Uri tree, String filename, String mime, byte[] bytes) throws IOException {

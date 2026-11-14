@@ -79,7 +79,7 @@ export function Preview(props: Props) {
         setNotice(`PDF saved to ${stored.where}.`);
         const name = await connectedFolder();
         if (name) setFolder(name);
-      } else setNotice('Choose a folder, then download again.');
+      } else setError('The PDF was not saved on the phone. Choose a folder, tap Use this folder, then download again.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the PDF.');
     } finally {
@@ -136,7 +136,7 @@ export function Preview(props: Props) {
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
         {canChooseFolder() && (
-          <p class="hint center">{folder ? `Download saves the PDF in ${folder}.` : 'Choose folder, then download. The PDF goes into the folder you pick.'}</p>
+          <p class="hint center">{folder ? `Download saves the PDF in ${folder} on your phone.` : 'Choose folder opens your phone storage. Open the folder you want, tap Use this folder, then download.'}</p>
         )}
         <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
