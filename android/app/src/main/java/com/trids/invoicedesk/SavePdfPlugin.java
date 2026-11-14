@@ -46,16 +46,33 @@ public class SavePdfPlugin extends Plugin {
 
     @PluginMethod
     public void pickFolder(PluginCall call) {
-        if (getActivity() == null) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addCategory(Intent.CATEGORY_DEFAULT);
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        );
+        launchOnScreen(call, intent, "onFolderPicked");
+    }
+
+    /** Plugin calls run off the main thread. Android will not show a folder list started from there. */
+    private void launchOnScreen(PluginCall call, Intent intent, String callback) {
+        Activity activity = getActivity();
+        if (activity == null) {
             call.reject("The app is not ready to open folders. Close it, open it again, then try Choose folder.");
             return;
         }
-        Intent intent = new Intent(getActivity(), FolderPickerActivity.class);
-        try {
-            startActivityForResult(call, intent, "onFolderPicked");
-        } catch (Exception err) {
-            call.reject(err.getMessage() == null ? "Could not open the folder list." : err.getMessage());
-        }
+        call.setKeepAlive(true);
+        activity.runOnUiThread(() -> {
+            try {
+                startActivityForResult(call, intent, callback);
+            } catch (Exception err) {
+                call.setKeepAlive(false);
+                call.reject(err.getMessage() == null ? "Could not open the folder list." : err.getMessage());
+            }
+        });
     }
 
     @ActivityCallback
@@ -227,7 +244,7 @@ public class SavePdfPlugin extends Plugin {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType(mime);
         intent.putExtra(Intent.EXTRA_TITLE, filename);
-        startActivityForResult(call, intent, "onSaveResult");
+        launchOnScreen(call, intent, "onSaveResult");
     }
 
     @ActivityCallback

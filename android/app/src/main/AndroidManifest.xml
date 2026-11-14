@@ -14,7 +14,7 @@
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:exported="true">
 
             <intent-filter>
@@ -23,12 +23,6 @@
             </intent-filter>
 
         </activity>
-
-        <activity
-            android:name=".FolderPickerActivity"
-            android:exported="false"
-            android:launchMode="standard"
-            android:theme="@style/AppTheme" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
