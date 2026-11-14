@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { formatPounds, monthTotals, poundsToPence, shiftMonth } from '../src/money';
 import type { Entry } from '../src/types';
 
-function entry(kind: 'in' | 'out', amount: number, date: string): Entry {
-  return { id: date + kind + amount, kind, amount, date, category: 'Other', note: '' };
+function entry(kind: 'in' | 'out', amount: number, date: string, profileId = 'business'): Entry {
+  return { id: date + kind + amount + profileId, profileId, kind, amount, date, category: 'Other', note: '' };
 }
 
 describe('money', () => {
@@ -21,6 +21,11 @@ describe('money', () => {
     );
     expect(totals).toEqual({ income: 45000, expense: 3200, left: 41800 });
     expect(formatPounds(totals.left)).toBe('£418.00');
+    expect(monthTotals([entry('in', 45000, '2026-11-02', 'home'), entry('in', 1000, '2026-11-02', 'business')], '2026-11', 'home')).toEqual({
+      income: 45000,
+      expense: 0,
+      left: 45000,
+    });
   });
 
   it('moves between months', () => {

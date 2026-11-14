@@ -25,8 +25,8 @@ export function monthKey(date: string): string {
   return date.slice(0, 7);
 }
 
-export function monthTotals(entries: Entry[], month: string): { income: number; expense: number; left: number } {
-  const inMonth = entries.filter((entry) => monthKey(entry.date) === month);
+export function monthTotals(entries: Entry[], month: string, profileId?: string): { income: number; expense: number; left: number } {
+  const inMonth = entries.filter((entry) => monthKey(entry.date) === month && (!profileId || entry.profileId === profileId));
   const income = inMonth.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.amount, 0);
   const expense = inMonth.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.amount, 0);
   return { income, expense, left: income - expense };

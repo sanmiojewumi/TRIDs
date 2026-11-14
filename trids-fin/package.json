@@ -1,6 +1,6 @@
 {
   "name": "trids-fin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Local income and expense book for Trids Gas and Plumbing. No backend, no accounts.",

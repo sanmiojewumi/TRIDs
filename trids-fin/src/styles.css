@@ -7,11 +7,52 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 button, input, select { font: inherit; color: inherit; }
-.app { max-width: 640px; margin: 0 auto; min-height: 100vh; padding: 0.8rem 1rem 6.5rem; }
-.top { display: flex; align-items: center; gap: 0.75rem; }
-.top img { width: 52px; height: 52px; object-fit: contain; background: #1c140c; border-radius: 50%; }
-.top strong, .top span { display: block; }
-.top span { color: #e8c36a; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.app { max-width: 640px; margin: 0 auto; min-height: 100vh; padding: 0 1rem 6.5rem; }
+.bar {
+  position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 0.7rem;
+  padding: calc(0.7rem + env(safe-area-inset-top)) 0 0.7rem; background: rgba(18, 20, 23, 0.94);
+}
+.bar strong, .bar span { display: block; }
+.bar span { color: #e8c36a; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.bar img { width: 42px; height: 42px; object-fit: contain; background: #1c140c; border-radius: 50%; margin-left: auto; }
+.menu-btn {
+  width: 44px; height: 44px; border: 0; border-radius: 50%; background: #1c212b; display: grid; gap: 4px; place-content: center;
+}
+.menu-btn span { width: 16px; height: 2px; background: white; border-radius: 2px; display: block; }
+.landing { display: flex; flex-direction: column; gap: 0.7rem; padding-bottom: 1.4rem; }
+.hero {
+  margin-top: 0.4rem; border-radius: 22px; padding: 1.3rem 1rem 1.1rem; text-align: center;
+  background:
+    radial-gradient(120px 80px at 50% 0%, rgba(232, 195, 106, 0.35), transparent 70%),
+    linear-gradient(180deg, #241c12, #1c212b);
+}
+.hero img { width: 92px; height: 92px; object-fit: contain; }
+.hero p { margin: 0.2rem 0 0.8rem; color: #e7d7b0; }
+.hero-left span { display: block; color: #a7b0bd; font-size: 0.8rem; }
+.hero-left b { font-size: 1.8rem; }
+.landing h2 { margin: 0.5rem 0 0; font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: #e8c36a; }
+.card {
+  display: flex; justify-content: space-between; gap: 0.7rem; align-items: center; text-align: left;
+  background: #1c212b; border: 0; border-radius: 16px; padding: 0.9rem; color: inherit; border-left: 4px solid #2f6fed;
+}
+.card.business { border-left-color: #e8c36a; }
+.card small { display: block; color: #a7b0bd; margin-top: 0.15rem; }
+.card-figs { display: flex; flex-direction: column; align-items: flex-end; gap: 0.1rem; }
+.card-figs em { font-style: normal; font-size: 0.78rem; }
+.scrim { position: fixed; inset: 0; z-index: 20; border: 0; background: rgba(0, 0, 0, 0.5); }
+.drawer {
+  position: fixed; z-index: 21; top: 0; bottom: 0; left: 0; width: min(86vw, 360px); background: #12141a;
+  padding: calc(0.8rem + env(safe-area-inset-top)) 0.8rem 1rem; overflow: auto; display: flex; flex-direction: column; gap: 0.25rem;
+}
+.who { display: flex; align-items: center; gap: 0.7rem; padding: 0.4rem 0.3rem 0.8rem; }
+.who img { width: 52px; height: 52px; object-fit: contain; background: #1c140c; border-radius: 50%; }
+.who strong, .who span { display: block; }
+.who span { color: #a7b0bd; font-size: 0.8rem; }
+.drawer h2 { margin: 0.7rem 0.3rem 0.15rem; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: #e8c36a; }
+.nav-row { text-align: left; border: 0; background: transparent; color: inherit; border-radius: 12px; padding: 0.75rem 0.7rem; font-weight: 650; }
+.nav-row.on { background: #1d2838; color: #9ec0ff; }
+.drawer-add { margin-top: 0.8rem; }
+.text-btn { align-self: flex-start; border: 0; background: transparent; color: #9ec0ff; padding: 0.2rem 0; }
 .month-bar { display: flex; align-items: center; justify-content: space-between; margin: 0.8rem 0; }
 .month-bar h1 { font-size: 1.25rem; margin: 0; }
 .month-bar button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: #1c212b; color: white; font-size: 1.4rem; }
