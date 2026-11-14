@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { useStore } from '../store';
 import type { DayPlan } from '../types';
+import { RouteMap } from './RouteMap';
 
 export function History() {
   const state = useStore();
@@ -27,6 +28,13 @@ export function History() {
           <p class="hint">
             Set off {open.departAt} from {open.startAddress}
           </p>
+          {open.routeLine && open.routeLine.length > 1 && (
+            <RouteMap
+              start={open.routeLine[0]}
+              line={open.routeLine}
+              stops={open.stops.flatMap((stop, index) => (stop.lat == null || stop.lon == null ? [] : [{ lat: stop.lat, lon: stop.lon, label: String(index + 1) }]))}
+            />
+          )}
           <ol class="history-list">
             {open.stops.map((stop) => (
               <li key={stop.id}>

@@ -15,6 +15,11 @@ export interface Stop {
   doneAt?: string;
 }
 
+export interface LatLon {
+  lat: number;
+  lon: number;
+}
+
 export interface DayPlan {
   date: string;
   startAddress: string;
@@ -28,14 +33,20 @@ export interface DayPlan {
   eta: string[];
   /** Minutes late for each stop. */
   late: number[];
+  /** Road line for the latest arranged route, including the start. */
+  routeLine?: LatLon[];
   optimized: boolean;
   finished: boolean;
 }
+
+export type NavApp = 'google' | 'waze';
 
 export interface RouteSettings {
   startAddress: string;
   departAt: string;
   serviceMinutes: number;
+  /** Satnav used for the whole route. */
+  navApp: NavApp;
 }
 
 export interface AppState {

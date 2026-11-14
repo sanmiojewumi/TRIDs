@@ -1,10 +1,12 @@
-import { useState } from 'preact/hooks';
-import { driveMinutes, geocode } from '../geo';
-import { appleMapsUrl, googleMapsUrl, wazeUrl } from '../nav';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { driveMinutes, drivePath, geocode } from '../geo';
+import { googleRouteUrl, stopNavUrl } from '../nav';
 import { optimiseRoute, windowFrom } from '../optimize';
 import { actions, todayISO, useStore } from '../store';
 import { formatTime, parseTime } from '../time';
-import type { DayPlan, Stop } from '../types';
+import type { DayPlan, NavApp, Stop } from '../types';
+import { NavChoice } from './NavChoice';
+import { RouteMap } from './RouteMap';
 import { StopForm } from './StopForm';
 
 export function Today() {
@@ -15,8 +17,14 @@ export function Today() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Stop | null>(null);
   const [open, setOpen] = useState(false);
+  const [arranged, setArranged] = useState(0);
+  const preview = useRef<HTMLDivElement>(null);
 
-  const save = (next: DayPlan) => actions.saveDay({ ...next, optimized: false });
+  useEffect(() => {
+    if (arranged) preview.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [arranged]);
+
+  const save = (next: DayPlan) => actions.saveDay({ ...next, optimized: false, routeLine: undefined });
 
   const addStop = (stop: Stop) => {
     const stops = day.stops.some((item) => item.id === stop.id) ? day.stops.map((item) => (item.id === stop.id ? stop : item)) : [...day.stops, stop];
@@ -67,6 +75,7 @@ export function Today() {
       );
       const ordered = result.order.map((index) => located[index]);
       const eta = result.arrival.map((minute) => formatTime(minute));
+      const routeLine = await drivePath([{ lat: origin.lat, lon: origin.lon }, ...ordered.map((stop) => ({ lat: stop.lat!, lon: stop.lon! }))]);
       actions.saveDay({
         ...day,
         startAddress: day.startAddress.trim(),
@@ -76,8 +85,10 @@ export function Today() {
         travel: [...done.map(() => 0), ...result.travel],
         eta: [...done.map((_, index) => day.eta[index] ?? ''), ...eta],
         late: [...done.map(() => 0), ...result.late],
+        routeLine,
         optimized: true,
       });
+      setArranged((value) => value + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not plan the route.');
     } finally {
@@ -86,6 +97,7 @@ export function Today() {
   };
 
   const doneCount = day.stops.filter((stop) => stop.status === 'done').length;
+  const launch = routeLaunch(day, state.settings.navApp);
 
   return (
     <section class="page-wrap">
@@ -105,8 +117,10 @@ export function Today() {
             <input value={day.startAddress} onInput={(event) => save({ ...day, startAddress: (event.target as HTMLInputElement).value, startLat: undefined, startLon: undefined })} />
           </label>
         </div>
-        <p class="hint">Planning sends the addresses to OpenStreetMap to work out the shortest sensible order. Driving then opens Waze, Google Maps or Apple Maps.</p>
+        <p class="hint">Optimise first. The map shows the order before any satnav opens.</p>
       </div>
+
+      {day.optimized && <RoutePreview day={day} preview={preview} navApp={state.settings.navApp} onNavApp={(navApp) => actions.setSettings({ ...state.settings, navApp })} />}
 
       {day.stops.map((stop, index) => (
         <article class={`card stop ${stop.status}`} key={stop.id}>
@@ -130,14 +144,8 @@ export function Today() {
                 Call
               </a>
             )}
-            <a class="btn small" href={wazeUrl(stop)} target="_blank" rel="noreferrer">
-              Waze
-            </a>
-            <a class="btn small" href={googleMapsUrl(stop)} target="_blank" rel="noreferrer">
-              Google Maps
-            </a>
-            <a class="btn small" href={appleMapsUrl(stop)} target="_blank" rel="noreferrer">
-              Apple Maps
+            <a class="btn small" href={stopNavUrl(state.settings.navApp, stop)} target="_blank" rel="noreferrer">
+              Navigate
             </a>
           </div>
           <div class="row wrap">
@@ -180,10 +188,21 @@ export function Today() {
         <button class="btn" onClick={() => { setEditing(null); setOpen(true); }}>
           Add stop
         </button>
-        <button class="btn primary grow" disabled={busy} onClick={plan}>
-          {busy ? 'Planning…' : 'Optimise route'}
-        </button>
+        {day.optimized && launch.href ? (
+          <a class="btn primary grow" href={launch.href} target="_blank" rel="noreferrer">
+            {launch.short}
+          </a>
+        ) : (
+          <button class="btn primary grow" disabled={busy} onClick={plan}>
+            {busy ? 'Planning…' : 'Optimise route'}
+          </button>
+        )}
       </div>
+      {day.optimized && (
+        <button class="btn" disabled={busy} onClick={plan}>
+          {busy ? 'Planning…' : 'Optimise again'}
+        </button>
+      )}
       {day.stops.length > 0 && (
         <button
           class="btn"
@@ -193,6 +212,55 @@ export function Today() {
         </button>
       )}
     </section>
+  );
+}
+
+function routeLaunch(day: DayPlan, navApp: NavApp): { href?: string; label: string; short: string; note?: string } {
+  const pending = day.stops.filter((stop) => stop.status === 'pending');
+  const depart = day.routeLine?.[0];
+  const origin = { lat: depart?.lat ?? day.startLat, lon: depart?.lon ?? day.startLon, address: day.startAddress };
+  if (navApp === 'waze') {
+    const next = pending[0];
+    return {
+      href: next ? stopNavUrl('waze', next) : undefined,
+      label: 'Open next stop in Waze',
+      short: 'Open in Waze',
+      note: 'Waze takes one stop at a time, using this order. Google Maps can open every stop in one go.',
+    };
+  }
+  const whole = googleRouteUrl(origin, pending);
+  return {
+    href: whole?.url,
+    label: 'Open all stops in Google Maps',
+    short: 'Open in Google Maps',
+    note: whole && whole.sent < whole.total ? `Google Maps opens the first ${whole.sent} stops. The rest stay in this list.` : undefined,
+  };
+}
+
+function RoutePreview(props: { day: DayPlan; preview: preact.RefObject<HTMLDivElement | null>; navApp: NavApp; onNavApp: (app: NavApp) => void }) {
+  const launch = routeLaunch(props.day, props.navApp);
+  const depart = props.day.routeLine?.[0];
+  const drive = props.day.travel.reduce((sum, minutes) => sum + (minutes || 0), 0);
+  const last = [...props.day.eta].reverse().find((time) => time);
+  const late = props.day.late.filter((minutes) => minutes > 0).length;
+  const pins = props.day.stops.flatMap((stop, index) => (stop.lat == null || stop.lon == null ? [] : [{ lat: stop.lat, lon: stop.lon, label: String(index + 1) }]));
+
+  return (
+    <div class="card" ref={props.preview}>
+      <h2>Arranged route</h2>
+      <p class="hint">
+        {props.day.stops.length} stops · {drive} min driving{last ? ` · last arrival ${last}` : ''}
+        {late ? ` · ${late} late` : ''}. This is the order before a satnav opens.
+      </p>
+      {props.day.routeLine && props.day.routeLine.length > 1 && <RouteMap start={depart} stops={pins} line={props.day.routeLine} />}
+      <NavChoice value={props.navApp} onChange={props.onNavApp} />
+      {launch.href && (
+        <a class="btn primary" href={launch.href} target="_blank" rel="noreferrer">
+          {launch.label}
+        </a>
+      )}
+      {launch.note && <p class="hint">{launch.note}</p>}
+    </div>
   );
 }
 

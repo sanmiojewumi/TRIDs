@@ -1,4 +1,5 @@
 import { actions, useStore } from '../store';
+import { NavChoice } from './NavChoice';
 
 export function Settings() {
   const state = useStore();
@@ -28,6 +29,11 @@ export function Settings() {
           </label>
         </div>
         <p class="hint">New days start with these. A day you have already opened keeps the times you set on it.</p>
+      </div>
+      <div class="card">
+        <h2>Satnav</h2>
+        <p class="hint">One choice for the whole route. It is used for every stop, and for the button that opens the arranged route.</p>
+        <NavChoice value={settings.navApp} onChange={(navApp) => set({ navApp })} />
       </div>
       <div class="card">
         <h2>Install</h2>

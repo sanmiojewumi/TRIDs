@@ -41,6 +41,22 @@ export async function geocode(address: string): Promise<Place> {
   return place;
 }
 
+/** Road line through the points, for the map shown before a satnav is opened. */
+export async function drivePath(points: { lat: number; lon: number }[]): Promise<{ lat: number; lon: number }[]> {
+  if (points.length < 2) return points;
+  const path = points.map((point) => `${point.lon},${point.lat}`).join(';');
+  try {
+    const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${path}?overview=simplified&geometries=geojson`);
+    if (!response.ok) return points;
+    const body = (await response.json()) as { code?: string; routes?: { geometry?: { coordinates?: [number, number][] } }[] };
+    const coordinates = body.code === 'Ok' ? body.routes?.[0]?.geometry?.coordinates : undefined;
+    if (!coordinates?.length) return points;
+    return coordinates.map(([lon, lat]) => ({ lat, lon }));
+  } catch {
+    return points;
+  }
+}
+
 /** Drive minutes between points. Index 0 is the start of the day. */
 export async function driveMinutes(points: { lat: number; lon: number }[]): Promise<number[][]> {
   if (points.length < 2) return points.map(() => points.map(() => 0));

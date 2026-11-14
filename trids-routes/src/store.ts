@@ -7,6 +7,7 @@ const defaultSettings = (): RouteSettings => ({
   startAddress: 'Crewe, CW1',
   departAt: '08:00',
   serviceMinutes: 20,
+  navApp: 'google',
 });
 
 function fresh(): AppState {
