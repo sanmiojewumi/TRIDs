@@ -52,7 +52,16 @@ button, input, select { font: inherit; color: inherit; }
 .nav-row { text-align: left; border: 0; background: transparent; color: inherit; border-radius: 12px; padding: 0.75rem 0.7rem; font-weight: 650; }
 .nav-row.on { background: #1d2838; color: #9ec0ff; }
 .drawer-add { margin-top: 0.8rem; }
-.text-btn { align-self: flex-start; border: 0; background: transparent; color: #9ec0ff; padding: 0.2rem 0; }
+.text-btn { border: 0; background: transparent; color: #9ec0ff; padding: 0.2rem 0; }
+.inline-links { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.account-row { display: flex; gap: 0.45rem; overflow: auto; padding-bottom: 0.2rem; }
+.account {
+  min-width: 8.5rem; text-align: left; border: 0; border-radius: 14px; background: #1c212b; color: inherit; padding: 0.7rem;
+}
+.account.on { outline: 2px solid #e8c36a; }
+.account span, .nav-row small { display: block; color: #a7b0bd; font-size: 0.75rem; }
+.choice.kinds { grid-template-columns: 1fr 1fr 1fr; }
+.choice button { text-transform: capitalize; }
 .month-bar { display: flex; align-items: center; justify-content: space-between; margin: 0.8rem 0; }
 .month-bar h1 { font-size: 1.25rem; margin: 0; }
 .month-bar button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: #1c212b; color: white; font-size: 1.4rem; }
@@ -81,6 +90,7 @@ button, input, select { font: inherit; color: inherit; }
 .btn.in { background: #1f6b45; color: white; }
 .btn.out { background: #7a3030; color: white; }
 .btn.save { background: #2f6fed; color: white; }
+.btn.ghost { background: transparent; color: #e8c36a; border: 1px solid #3a3324; }
 .btn.danger { background: transparent; color: #ff8d8d; }
 .screen {
   position: fixed; inset: 0; background: #121417; z-index: 5; padding: 0.6rem 1rem 1.2rem;

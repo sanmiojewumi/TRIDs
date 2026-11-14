@@ -1,4 +1,4 @@
-import type { Entry, Kind } from './types';
+import type { Entry, Kind, MoneyAccount } from './types';
 
 export const INCOME = ['Call-out', 'Labour', 'Materials charged', 'Other income'];
 export const EXPENSE = ['Materials', 'Fuel', 'Tools', 'Parking', 'Insurance', 'Phone', 'Other expense'];
@@ -30,6 +30,13 @@ export function monthTotals(entries: Entry[], month: string, profileId?: string)
   const income = inMonth.filter((entry) => entry.kind === 'in').reduce((sum, entry) => sum + entry.amount, 0);
   const expense = inMonth.filter((entry) => entry.kind === 'out').reduce((sum, entry) => sum + entry.amount, 0);
   return { income, expense, left: income - expense };
+}
+
+export function accountBalance(account: MoneyAccount, entries: Entry[]): number {
+  const movement = entries
+    .filter((entry) => entry.accountId === account.id)
+    .reduce((sum, entry) => sum + (entry.kind === 'in' ? entry.amount : -entry.amount), 0);
+  return account.opening + movement;
 }
 
 export function shiftMonth(month: string, by: number): string {

@@ -8,9 +8,21 @@ export interface Section {
   kind: SectionKind;
 }
 
+export type AccountKind = 'cash' | 'bank' | 'card';
+
+export interface MoneyAccount {
+  id: string;
+  profileId: string;
+  name: string;
+  kind: AccountKind;
+  /** Opening balance in pence. */
+  opening: number;
+}
+
 export interface Entry {
   id: string;
   profileId: string;
+  accountId: string;
   kind: Kind;
   /** Amount in pence. */
   amount: number;
@@ -22,5 +34,6 @@ export interface Entry {
 export interface Books {
   version: 1;
   profiles: Section[];
+  accounts: MoneyAccount[];
   entries: Entry[];
 }

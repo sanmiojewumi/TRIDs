@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatPounds, monthTotals, poundsToPence, shiftMonth } from '../src/money';
+import { accountBalance, formatPounds, monthTotals, poundsToPence, shiftMonth } from '../src/money';
 import type { Entry } from '../src/types';
 
-function entry(kind: 'in' | 'out', amount: number, date: string, profileId = 'business'): Entry {
-  return { id: date + kind + amount + profileId, profileId, kind, amount, date, category: 'Other', note: '' };
+function entry(kind: 'in' | 'out', amount: number, date: string, profileId = 'business', accountId = 'bank'): Entry {
+  return { id: date + kind + amount + profileId, profileId, accountId, kind, amount, date, category: 'Other', note: '' };
 }
 
 describe('money', () => {
@@ -26,6 +26,14 @@ describe('money', () => {
       expense: 0,
       left: 45000,
     });
+  });
+
+  it('adds the opening balance to the money in and out of an account', () => {
+    const balance = accountBalance(
+      { id: 'bank', profileId: 'business', name: 'Bank', kind: 'bank', opening: 10000 },
+      [entry('in', 45000, '2026-11-02'), entry('out', 3200, '2026-11-03', 'business', 'cash')],
+    );
+    expect(balance).toBe(55000);
   });
 
   it('moves between months', () => {
