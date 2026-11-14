@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatMoney } from '../money';
 import { pdfFileName, renderPdf, renderSvgPages } from '../render';
 import type { InvoiceData, InvoiceRecord } from '../types';
-import { canShareFile, downloadBlob, isNativeApp, shareBlob } from './util';
+import { canChooseFolder, canShareFile, downloadToDevice, isNativeApp, saveToChosenFolder, shareBlob } from './util';
 
 interface Props {
   data: InvoiceData;
@@ -68,8 +68,24 @@ export function Preview(props: Props) {
     try {
       const d = issueIfNeeded();
       if (!d) return;
-      const saved = await downloadBlob(renderPdf(d), pdfFileName(d));
-      if (saved && isNativeApp()) setNotice('PDF saved to the folder you chose.');
+      const stored = await downloadToDevice(renderPdf(d), pdfFileName(d));
+      if (stored.saved && stored.where) setNotice(`PDF saved to ${stored.where}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the PDF.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseFolder = async () => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const d = issueIfNeeded();
+      if (!d) return;
+      const stored = await saveToChosenFolder(renderPdf(d), pdfFileName(d));
+      if (stored.saved && stored.where) setNotice(`PDF saved to ${stored.where}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the PDF.');
     } finally {
@@ -109,11 +125,16 @@ export function Preview(props: Props) {
         {error && <div class="error">{error}</div>}
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
-        {isNativeApp() && <p class="hint center">Download opens your phone's save screen so you can pick the folder.</p>}
+        {isNativeApp() && <p class="hint center">Download puts the PDF in your Downloads folder. Choose folder if you want it somewhere else.</p>}
         <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
             {draft ? 'Save & download PDF' : 'Download PDF'}
           </button>
+          {canChooseFolder() && (
+            <button class="btn grow" disabled={busy} onClick={chooseFolder}>
+              Choose folder
+            </button>
+          )}
           {(isNativeApp() || canShare) && (
             <button class="btn grow" disabled={busy} onClick={share}>
               Share
