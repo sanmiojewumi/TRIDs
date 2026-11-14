@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatWorkDates, todayISO } from '../dates';
 import { buildInvoiceData, emptyDraft, validateDraft } from '../invoice';
 import { formatMoney, lineTotal } from '../money';
-import { readImageText } from '../ocr';
 import { DEFAULT_DESCRIPTION, newClient } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
 import { nextRef } from '../refs';
@@ -52,11 +51,9 @@ export function NewInvoice() {
   const [problems, setProblems] = useState<string[]>([]);
   const [detailed, setDetailed] = useState(false);
   const [more, setMore] = useState(false);
-  const [reading, setReading] = useState('');
   const [caption, setCaption] = useState('');
   const [shotNote, setShotNote] = useState('');
   const [pendingPreview, setPendingPreview] = useState(false);
-  const shotRef = useRef<HTMLInputElement>(null);
 
   const setDraft = (patch: Partial<Draft>) =>
     setDraftRaw((d) => {
@@ -142,28 +139,6 @@ export function NewInvoice() {
     if (!nextProblems.length) setShowPreview(true);
     setPendingPreview(false);
   }, [pendingPreview, client, draft]);
-
-  const readShot = async (file: File) => {
-    setReading('Reading the screenshot…');
-    setShotNote('');
-    setProblems([]);
-    setUnderstood([]);
-    try {
-      setReading('Reading the writing…');
-      const text = await readImageText(file);
-      if (text.replace(/[^a-z0-9]/gi, '').length < 6) {
-        setShotNote('No writing could be read. Use a sharper screenshot, or type the details.');
-        return;
-      }
-      const read = readInvoiceText(text, draft.clientId ? state.clients.filter((item) => item.id === draft.clientId) : state.clients, new Date(), caption);
-      applyRead(read, 'Check the invoice. Save the PDF when it looks right.');
-    } catch (err) {
-      setShotNote(err instanceof Error ? err.message : 'Could not read that picture.');
-    } finally {
-      setReading('');
-      if (shotRef.current) shotRef.current.value = '';
-    }
-  };
 
   const applyRead = (read: ShotRead, message: string) => {
     const chosenId = draft.clientId;
@@ -288,7 +263,7 @@ export function NewInvoice() {
           </p>
         )}
 
-        <h2>Screenshot</h2>
+        <h2>Note</h2>
         <label class="field">
           <span>Note</span>
           <textarea
@@ -298,33 +273,18 @@ export function NewInvoice() {
             onInput={(e) => setCaption(val(e))}
           />
         </label>
-        <p class="hint">Choose the client first if you already know them. The note is used with the screenshot. Only the first line of the address and the postcode are filled in.</p>
-        <input
-          ref={shotRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            if (file) void readShot(file);
+        <p class="hint">Choose the client first if you already know them. Only the first line of the address and the postcode are filled in.</p>
+        <button
+          class="btn primary"
+          type="button"
+          disabled={!caption.trim()}
+          onClick={() => {
+            const read = readInvoiceText(caption, draft.clientId ? state.clients.filter((item) => item.id === draft.clientId) : state.clients);
+            applyRead(read, 'Note added. Check the invoice before you save it.');
           }}
-        />
-        <div class="row">
-          <button class="btn primary" type="button" disabled={!!reading} onClick={() => shotRef.current?.click()}>
-            {reading || 'Read a screenshot'}
-          </button>
-          <button
-            class="btn"
-            type="button"
-            disabled={!!reading || !caption.trim()}
-            onClick={() => {
-              const read = readInvoiceText(caption, draft.clientId ? state.clients.filter((item) => item.id === draft.clientId) : state.clients);
-              applyRead(read, 'Note added. Check the invoice before you save it.');
-            }}
-          >
-            Use note
-          </button>
-        </div>
+        >
+          Use note
+        </button>
         {shotNote && <p class="hint">{shotNote}</p>}
         {shotNote && understood.length > 0 && (
           <ul class="chips" aria-label="What was read">
