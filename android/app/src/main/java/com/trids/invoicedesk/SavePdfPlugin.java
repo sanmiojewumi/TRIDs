@@ -4,10 +4,13 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
@@ -32,6 +35,139 @@ import java.io.OutputStream;
     permissions = { @Permission(strings = { android.Manifest.permission.WRITE_EXTERNAL_STORAGE }, alias = "storage") }
 )
 public class SavePdfPlugin extends Plugin {
+
+    private static final String PREFS = "trids-apps";
+    private static final String TREE = "treeUri";
+
+    @PluginMethod
+    public void folder(PluginCall call) {
+        call.resolve(folderStatus());
+    }
+
+    @PluginMethod
+    public void pickFolder(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+        );
+        if (Build.VERSION.SDK_INT >= 26) intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Select the Trids apps folder");
+        startActivityForResult(call, intent, "onFolderPicked");
+    }
+
+    @ActivityCallback
+    private void onFolderPicked(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            JSObject cancelled = new JSObject();
+            cancelled.put("connected", false);
+            call.resolve(cancelled);
+            return;
+        }
+        Uri tree = result.getData().getData();
+        final int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+        prefs().edit().putString(TREE, tree.toString()).apply();
+        call.resolve(folderStatus());
+    }
+
+    @PluginMethod
+    public void saveToFolder(PluginCall call) {
+        byte[] bytes = decode(call);
+        if (bytes == null) return;
+        String stored = prefs().getString(TREE, null);
+        if (stored == null) {
+            call.reject("Choose the Trids apps folder first.");
+            return;
+        }
+        try {
+            String name = writeIntoTree(Uri.parse(stored), filename(call), call.getString("mime", "application/pdf"), bytes);
+            JSObject ret = folderStatus();
+            ret.put("saved", true);
+            ret.put("file", name);
+            call.resolve(ret);
+        } catch (SecurityException e) {
+            prefs().edit().remove(TREE).apply();
+            call.reject("The Trids apps folder needs to be chosen again.");
+        } catch (Exception e) {
+            call.reject("Could not save into the Trids apps folder");
+        }
+    }
+
+    private SharedPreferences prefs() {
+        return getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+    }
+
+    private JSObject folderStatus() {
+        JSObject ret = new JSObject();
+        String stored = prefs().getString(TREE, null);
+        if (stored == null) {
+            ret.put("connected", false);
+            return ret;
+        }
+        String name = "Trids apps";
+        try {
+            Uri tree = Uri.parse(stored);
+            Uri doc = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+            try (Cursor cursor = getContext().getContentResolver().query(
+                doc,
+                new String[] { DocumentsContract.Document.COLUMN_DISPLAY_NAME },
+                null,
+                null,
+                null
+            )) {
+                if (cursor != null && cursor.moveToFirst() && cursor.getString(0) != null) name = cursor.getString(0);
+            }
+            ret.put("connected", true);
+            ret.put("name", name);
+        } catch (Exception e) {
+            prefs().edit().remove(TREE).apply();
+            ret.put("connected", false);
+        }
+        return ret;
+    }
+
+    private String writeIntoTree(Uri tree, String filename, String mime, byte[] bytes) throws IOException {
+        ContentResolver resolver = getContext().getContentResolver();
+        Uri existing = findChild(tree, filename);
+        Uri target = existing != null
+            ? existing
+            : DocumentsContract.createDocument(
+                resolver,
+                DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)),
+                mime,
+                filename
+            );
+        if (target == null) throw new IOException("Could not create the file");
+        try (OutputStream out = resolver.openOutputStream(target, "wt")) {
+            if (out == null) throw new IOException("Could not open the file");
+            out.write(bytes);
+        }
+        return filename;
+    }
+
+    private Uri findChild(Uri tree, String name) {
+        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+        try (Cursor cursor = getContext().getContentResolver().query(
+            children,
+            new String[] { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME },
+            null,
+            null,
+            null
+        )) {
+            if (cursor == null) return null;
+            while (cursor.moveToNext()) {
+                if (name.equals(cursor.getString(1))) {
+                    return DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0));
+                }
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
+    }
 
     @PluginMethod
     public void toDownloads(PluginCall call) {

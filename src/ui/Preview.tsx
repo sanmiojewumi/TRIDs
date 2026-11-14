@@ -125,7 +125,9 @@ export function Preview(props: Props) {
         {error && <div class="error">{error}</div>}
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
-        {isNativeApp() && <p class="hint center">Download puts the PDF in your Downloads folder. Choose folder if you want it somewhere else.</p>}
+        {isNativeApp() && (
+          <p class="hint center">Download saves the finished invoice in your Trids apps folder. The first time, choose that folder in Internal storage.</p>
+        )}
         <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
             {draft ? 'Save & download PDF' : 'Download PDF'}

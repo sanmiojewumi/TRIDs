@@ -1,13 +1,18 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { formatRef, REF_FORMATS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
-import { backupFileName, downloadBlob, readText, shrinkImage, val } from './util';
+import { backupFileName, connectFolder, connectedFolder, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
 
 export function Settings() {
   const state = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+  const [folder, setFolder] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    void connectedFolder().then(setFolder);
+  }, []);
   const b = state.business;
   const bank = state.bank;
   const setB = (patch: Partial<Business>) => actions.setBusiness({ ...b, ...patch });
@@ -155,6 +160,31 @@ export function Settings() {
           </label>
         </div>
       </div>
+
+      {isNativeApp() && (
+        <div class="card">
+          <h2>Trids apps folder</h2>
+          <p class="hint">
+            {folder
+              ? `Finished invoices are saved in ${folder}.`
+              : 'Choose the Trids apps folder in Internal storage. Every finished invoice is saved there from then on.'}
+          </p>
+          <button
+            class="btn"
+            onClick={() => {
+              void connectFolder()
+                .then((name) => {
+                  if (!name) return;
+                  setFolder(name);
+                  setMsg(`Connected to ${name}.`);
+                })
+                .catch((err: unknown) => setMsg(err instanceof Error ? err.message : 'Could not open the folder picker.'));
+            }}
+          >
+            {folder ? 'Change folder' : 'Choose Trids apps folder'}
+          </button>
+        </div>
+      )}
 
       <div class="card">
         <h2>Your data</h2>

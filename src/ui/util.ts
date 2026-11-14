@@ -20,6 +20,9 @@ function blobToBase64(blob: Blob): Promise<string> {
 interface SavePdfPlugin {
   toDownloads(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string }>;
   save(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean }>;
+  folder(): Promise<{ connected: boolean; name?: string }>;
+  pickFolder(): Promise<{ connected: boolean; name?: string }>;
+  saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
 }
 
 function savePdfPlugin(): Promise<SavePdfPlugin> {
@@ -88,9 +91,36 @@ export interface StoredFile {
   where?: string;
 }
 
-/** Download straight into Downloads (phone) or the browser's download folder. */
+/** The phone folder remembered for finished invoices, or null when none is connected. */
+export async function connectedFolder(): Promise<string | null> {
+  if (!isNativeApp()) return null;
+  const SavePdf = await savePdfPlugin();
+  const folder = await SavePdf.folder();
+  return folder.connected ? folder.name || 'Trids apps' : null;
+}
+
+/** Ask the phone to remember a folder, such as Internal storage / Trids apps. */
+export async function connectFolder(): Promise<string | null> {
+  if (!isNativeApp()) return null;
+  const SavePdf = await savePdfPlugin();
+  const folder = await SavePdf.pickFolder();
+  return folder.connected ? folder.name || 'Trids apps' : null;
+}
+
+/** Download into the connected phone folder, or the browser's download folder. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
-  if (isNativeApp()) return { saved: true, where: await saveToDownloads(blob, filename) };
+  if (isNativeApp()) {
+    let folder = await connectedFolder();
+    if (!folder) folder = await connectFolder();
+    if (!folder) return { saved: false };
+    const SavePdf = await savePdfPlugin();
+    const saved = await SavePdf.saveToFolder({
+      filename: safeName(filename),
+      data: await blobToBase64(blob),
+      mime: blob.type || 'application/octet-stream',
+    });
+    return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
+  }
   await downloadBlob(blob, filename);
   return { saved: true, where: 'your downloads folder' };
 }
