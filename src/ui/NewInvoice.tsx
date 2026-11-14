@@ -6,7 +6,7 @@ import { readImageText } from '../ocr';
 import { DEFAULT_DESCRIPTION, newClient } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
 import { nextRef } from '../refs';
-import { readInvoiceText } from '../screenshot';
+import { readInvoiceText, type ShotRead } from '../screenshot';
 import { actions, templateFor, useStore } from '../store';
 import type { Draft, InvoiceRecord, LineItem } from '../types';
 import { MoneyField } from './MoneyField';
@@ -53,6 +53,7 @@ export function NewInvoice() {
   const [detailed, setDetailed] = useState(false);
   const [more, setMore] = useState(false);
   const [reading, setReading] = useState('');
+  const [caption, setCaption] = useState('');
   const [shotNote, setShotNote] = useState('');
   const [pendingPreview, setPendingPreview] = useState(false);
   const shotRef = useRef<HTMLInputElement>(null);
@@ -154,43 +155,47 @@ export function NewInvoice() {
         setShotNote('No writing could be read. Use a sharper screenshot, or type the details.');
         return;
       }
-      const read = readInvoiceText(text, state.clients);
-      let clientId = read.clientId;
-      if (!clientId && read.newClient?.name) {
-        const created = newClient({
-          name: read.newClient.name,
-          address: read.newClient.address,
-          postcode: read.newClient.postcode,
-          phone: read.newClient.phone,
-          email: read.newClient.email,
-          templateId: state.templates[0]?.id ?? '',
-        });
-        actions.saveClient(created);
-        clientId = created.id;
-      }
-      const patch: Partial<Draft> = {};
-      if (clientId) patch.clientId = clientId;
-      if (read.workDates.length) patch.workDates = read.workDates;
-      if (read.sitePostcode) patch.sitePostcode = read.sitePostcode;
-      if (read.siteAddress) patch.siteAddress = read.siteAddress;
-      if (read.amount != null || read.description) {
-        const items = [...draft.items];
-        const first: LineItem = { ...items[0], qty: 1 };
-        if (read.amount != null) first.rate = read.amount;
-        if (read.description) first.description = read.description;
-        items[0] = first;
-        patch.items = items;
-      }
-      setUnderstood(read.found);
-      setDraft(patch);
-      setShotNote(read.found.length ? 'Check the invoice. Save the PDF when it looks right.' : 'The picture was read, but the details were not clear enough to fill the form.');
-      if (clientId && read.amount != null && (read.siteAddress || read.sitePostcode)) setPendingPreview(true);
+      const read = readInvoiceText(text, draft.clientId ? state.clients.filter((item) => item.id === draft.clientId) : state.clients, new Date(), caption);
+      applyRead(read, 'Check the invoice. Save the PDF when it looks right.');
     } catch (err) {
       setShotNote(err instanceof Error ? err.message : 'Could not read that picture.');
     } finally {
       setReading('');
       if (shotRef.current) shotRef.current.value = '';
     }
+  };
+
+  const applyRead = (read: ShotRead, message: string) => {
+    const chosenId = draft.clientId;
+    let clientId = chosenId || read.clientId;
+    if (chosenId) read.found.unshift(`Client kept: ${state.clients.find((item) => item.id === chosenId)?.name ?? 'selected client'}`);
+    if (!chosenId && !clientId && read.newClient?.name) {
+      const created = newClient({
+        name: read.newClient.name,
+        address: read.newClient.address,
+        postcode: read.newClient.postcode,
+        phone: read.newClient.phone,
+        email: read.newClient.email,
+        templateId: state.templates[0]?.id ?? '',
+      });
+      actions.saveClient(created);
+      clientId = created.id;
+    }
+    const items = [...draft.items];
+    const first: LineItem = { ...items[0], qty: 1, description: read.description || 'Job' };
+    if (read.amount != null) first.rate = read.amount;
+    items[0] = first;
+    const patch: Partial<Draft> = { items };
+    if (clientId) patch.clientId = clientId;
+    if (read.workDates.length) patch.workDates = read.workDates;
+    if (read.sitePostcode) patch.sitePostcode = read.sitePostcode;
+    if (read.siteAddress) patch.siteAddress = read.siteAddress;
+    setUnderstood(read.found);
+    setDraft(patch);
+    setShotNote(message);
+    const address = read.siteAddress || read.sitePostcode || draft.siteAddress || draft.sitePostcode;
+    const amount = read.amount ?? items[0].rate;
+    if (clientId && amount > 0 && address) setPendingPreview(true);
   };
 
   const openPreview = () => {
@@ -204,6 +209,7 @@ export function NewInvoice() {
     const c = state.clients.find((x) => x.id === draft.clientId);
     setDraftRaw(emptyDraft(c));
     setPrompt('');
+    setCaption('');
     setUnderstood([]);
     setSaved(undefined);
     setShowPreview(false);
@@ -235,25 +241,6 @@ export function NewInvoice() {
       )}
 
       <div class="card">
-        <h2>Screenshot</h2>
-        <p class="hint">Choose a screenshot. Only the client, address, job and amount are used. Chat and other writing is ignored.</p>
-        <input
-          ref={shotRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            if (file) void readShot(file);
-          }}
-        />
-        <button class="btn primary" type="button" disabled={!!reading} onClick={() => shotRef.current?.click()}>
-          {reading || 'Read a screenshot'}
-        </button>
-        {shotNote && <p class="hint">{shotNote}</p>}
-      </div>
-
-      <div class="card">
         <label class="field">
           <span>Quick prompt</span>
           <textarea
@@ -272,7 +259,7 @@ export function NewInvoice() {
           </button>
           <span class="hint">Runs on this device. Nothing is sent anywhere.</span>
         </div>
-        {understood.length > 0 && (
+        {!shotNote && understood.length > 0 && (
           <ul class="chips" aria-label="What was understood">
             {understood.map((u) => (
               <li key={u}>{u}</li>
@@ -299,6 +286,52 @@ export function NewInvoice() {
             Template: {templateFor(state, client).name} | Next ref: {nextRef(state.numbering, client.postcode, state.invoices).ref} | Terms: {client.paymentTermsDays === 0 ? 'due on receipt' : `${client.paymentTermsDays} days`}
             {state.business.vatRegistered && client.vatRate > 0 && ` | VAT ${client.vatRate}%`}
           </p>
+        )}
+
+        <h2>Screenshot</h2>
+        <label class="field">
+          <span>Note</span>
+          <textarea
+            rows={3}
+            placeholder="Write a few words, such as the job or the first line of the address"
+            value={caption}
+            onInput={(e) => setCaption(val(e))}
+          />
+        </label>
+        <p class="hint">Choose the client first if you already know them. The note is used with the screenshot. Only the first line of the address and the postcode are filled in.</p>
+        <input
+          ref={shotRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (file) void readShot(file);
+          }}
+        />
+        <div class="row">
+          <button class="btn primary" type="button" disabled={!!reading} onClick={() => shotRef.current?.click()}>
+            {reading || 'Read a screenshot'}
+          </button>
+          <button
+            class="btn"
+            type="button"
+            disabled={!!reading || !caption.trim()}
+            onClick={() => {
+              const read = readInvoiceText(caption, draft.clientId ? state.clients.filter((item) => item.id === draft.clientId) : state.clients);
+              applyRead(read, 'Note added. Check the invoice before you save it.');
+            }}
+          >
+            Use note
+          </button>
+        </div>
+        {shotNote && <p class="hint">{shotNote}</p>}
+        {shotNote && understood.length > 0 && (
+          <ul class="chips" aria-label="What was read">
+            {understood.map((u) => (
+              <li key={u}>{u}</li>
+            ))}
+          </ul>
         )}
 
         <label class="field">

@@ -24,9 +24,9 @@ const POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
 const PHONE = /(?:\+44\s?|0)(?:\d[\s-]?){9,10}/;
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const JOB = /\b(boiler|repair|service|install(?:ation)?|leak|tap|pipe|radiator|heating|bathroom|shower|toilet|gas|plumb\w*|cooker|hob|cylinder|unvented|drain)\b/i;
-const NOT_NAME = /\b(invoice|please|thanks|thank|morning|afternoon|evening|hello|whatsapp|total|amount|address|phone|service|repair|delivered|online|message)\b/i;
+const NOT_NAME = /\b(invoice|please|thanks|thank|morning|afternoon|evening|hello|whatsapp|total|amount|address|phone|service|repair|delivered|online|message|order|updated|property|upload)\b/i;
 
-export function readInvoiceText(text: string, clients: Client[], today: Date = new Date()): ShotRead {
+export function readInvoiceText(text: string, clients: Client[], today: Date = new Date(), caption = ''): ShotRead {
   const lines = text
     .replace(/\u00a0/g, ' ')
     .replace(/[|]/g, 'I')
@@ -54,10 +54,10 @@ export function readInvoiceText(text: string, clients: Client[], today: Date = n
   const amount = pickAmount(focused);
   if (amount != null) found.push(`Amount: £${(amount / 100).toFixed(2)}`);
 
-  const postcode = formatPostcode(parsed.sitePostcode || focused.match(POSTCODE)?.[0]);
+  const postcode = findPostcode(lines);
   if (postcode) found.push(`Postcode: ${postcode}`);
 
-  const address = tidyAddress(parsed.siteAddress || labelled(lines, 'site|address|job\\s*address|property') || addressBeforePostcode(lines));
+  const address = firstAddressLine(lines);
   if (address) found.push(`Address: ${address}`);
   if (newClient) {
     newClient.address = address ?? '';
@@ -65,14 +65,14 @@ export function readInvoiceText(text: string, clients: Client[], today: Date = n
     found.unshift(`New client: ${newClient.name}`);
   }
 
-  let description = labelled(lines, 'description|details|job|work');
-  if (!description) description = lines.find((line) => JOB.test(line) && line.length <= 60 && !/^(please|can you|could you|hey|hi)\b/i.test(line));
-  if (description) found.push(`Description: ${description}`);
+  let description = jobLine(lines);
+  description = cleanDescription(description);
+  found.push(`Description: ${description}`);
 
   if (parsed.workDates.length) found.push(`Work date: ${parsed.workDates.join(', ')}`);
   if (phone) found.push(`Phone: ${phone}`);
 
-  return {
+  return applyCaption({
     clientId,
     newClient,
     workDates: parsed.workDates,
@@ -81,7 +81,7 @@ export function readInvoiceText(text: string, clients: Client[], today: Date = n
     amount,
     description,
     found,
-  };
+  }, caption, clients, today);
 }
 
 function usefulLine(line: string): boolean {
@@ -89,6 +89,7 @@ function usefulLine(line: string): boolean {
   if (/trids/i.test(line)) return false;
   if (/^\d{1,2}:\d{2}\b/.test(line)) return false;
   if (/^https?:/i.test(line) || /@/.test(line) && line.split(/\s+/).length < 3) return false;
+  if (/upload\s+an?\s+invoice/i.test(line)) return false;
   if (/^(whatsapp|instagram|facebook|messenger|delivered|seen|online|typing|reply|forward|copy|edited|today|yesterday|just now|message|screenshot|camera|gallery|thanks|thank you|hi|hello|hey|ok|okay)$/i.test(line)) return false;
   return true;
 }
@@ -105,7 +106,7 @@ function labelled(lines: string[], label: string): string | undefined {
 }
 
 function looksLikeName(line: string): boolean {
-  if (line.length < 3 || line.length > 60 || NOT_NAME.test(line)) return false;
+  if (line.length < 3 || line.length > 60 || NOT_NAME.test(line) || JOB.test(line)) return false;
   if (/\d/.test(line) || /£/.test(line) || POSTCODE.test(line)) return false;
   const words = line.split(/\s+/);
   if (words.length < 2 || words.length > 6) return false;
@@ -144,17 +145,86 @@ function formatPostcode(raw: string | undefined): string | undefined {
   return full ? `${full[1]} ${full[2]}` : undefined;
 }
 
-function addressBeforePostcode(lines: string[]): string | undefined {
-  const index = lines.findIndex((line) => POSTCODE.test(line));
-  if (index <= 0) return undefined;
-  const parts: string[] = [];
-  for (let i = index - 1; i >= 0 && parts.length < 3; i--) {
-    if (looksLikeName(lines[i]) || /^(phone|tel|email|total|amount)/i.test(lines[i])) break;
-    if (lines[i].length > 50) continue;
-    parts.unshift(lines[i].replace(POSTCODE, '').replace(/[, ]+$/, '').trim());
+const STREET = /\b(?:street|st|road|rd|avenue|ave|lane|ln|close|drive|dr|way|court|place|crescent|gardens|terrace|grove|house|mews|rise|row|square|view|walk|hill|park|green)\b/i;
+const HOUSE = /^\d{1,4}[a-z]?(?:[/-]\d{1,4}[a-z]?)?\s+[A-Za-z]/i;
+const NOT_ADDRESS = /\b(work\s*order|updated|property|still|upload|invoice|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december)\b/i;
+
+function isAddressLine(line: string): boolean {
+  const value = line.replace(POSTCODE, '').replace(/^[^A-Za-z0-9]+/, '').trim();
+  if (!value || value.length > 50 || value.split(/\s+/).length > 7) return false;
+  if (NOT_ADDRESS.test(value)) return false;
+  return HOUSE.test(value) || STREET.test(value);
+}
+
+function findPostcode(lines: string[]): string | undefined {
+  for (const line of lines) {
+    const code = formatPostcode(line);
+    if (code && line.replace(/[^A-Za-z0-9]/g, '').length <= code.replace(/\s/g, '').length + 1) return code;
   }
-  const joined = parts.filter(Boolean).join(', ');
-  return joined || undefined;
+  for (const line of lines) {
+    if (line.length > 40 && !isAddressLine(line)) continue;
+    const match = line.match(POSTCODE);
+    if (match) return formatPostcode(match[0]);
+  }
+  return undefined;
+}
+
+function streetOnly(line: string): string | undefined {
+  const part = line.replace(POSTCODE, '').split(/[\n,]/).map((item) => item.trim()).find(isAddressLine);
+  return part ? tidyAddress(part) : undefined;
+}
+
+function firstAddressLine(lines: string[]): string | undefined {
+  const labelledAddress = labelled(lines, 'site|address|job\\s*address|property');
+  if (labelledAddress) {
+    const part = streetOnly(labelledAddress);
+    if (part) return part;
+  }
+  const index = lines.findIndex((line) => formatPostcode(line));
+  const around = index >= 0 ? lines.slice(Math.max(0, index - 4), index + 1) : lines;
+  const nearest = [...around].reverse().find((line) => streetOnly(line)) ?? lines.find((line) => streetOnly(line));
+  return nearest ? streetOnly(nearest) : undefined;
+}
+
+function jobLine(lines: string[]): string | undefined {
+  const labelledJob = labelled(lines, 'description|details|job|work');
+  if (labelledJob && !/upload\s+an?\s+invoice/i.test(labelledJob)) return labelledJob;
+  for (const line of lines) {
+    const rest = line.split(/[\n,]/).map((part) => part.trim()).filter((part) => part && !isAddressLine(part) && !formatPostcode(part)).join(', ');
+    if (JOB.test(rest) && rest.length <= 60 && !/^(please|can you|could you|hey|hi)\b/i.test(rest) && !/upload\s+an?\s+invoice/i.test(rest)) return rest;
+  }
+  return undefined;
+}
+
+function cleanDescription(value: string | undefined): string {
+  if (!value || /upload\s+an?\s+invoice/i.test(value)) return 'Job';
+  return value.trim();
+}
+
+function captionPieces(caption: string): string[] {
+  return caption.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean);
+}
+
+function applyCaption(read: ShotRead, caption: string, clients: Client[], today: Date): ShotRead {
+  const note = caption.trim();
+  if (!note) return read;
+  const extra = readInvoiceText(note, clients, today);
+  const words = captionPieces(note).filter((part) => !isAddressLine(part) && !formatPostcode(part) && !/^(?:£|gbp)?\s*\d[\d,]*(?:\.\d{2})?$/.test(part) && !/^(client|customer|name|address|post\s?code)\b/i.test(part));
+  const written = words.join(', ').replace(POSTCODE, '').replace(/(?:£|gbp)\s*\d[\d,]*(?:\.\d{2})?/gi, '').replace(/\s+/g, ' ').trim();
+  const description = cleanDescription(written || read.description);
+  const found = [`Description: ${description}`, ...read.found.filter((item) => !item.startsWith('Description:') && !item.startsWith('Address:') && !item.startsWith('Postcode:'))];
+  if (extra.siteAddress || read.siteAddress) found.push(`Address: ${extra.siteAddress || read.siteAddress}`);
+  if (extra.sitePostcode || read.sitePostcode) found.push(`Postcode: ${extra.sitePostcode || read.sitePostcode}`);
+  return {
+    clientId: read.clientId,
+    newClient: read.newClient,
+    workDates: extra.workDates.length ? extra.workDates : read.workDates,
+    sitePostcode: extra.sitePostcode || read.sitePostcode,
+    siteAddress: extra.siteAddress || read.siteAddress,
+    amount: extra.amount ?? read.amount,
+    description,
+    found,
+  };
 }
 
 function tidyAddress(value: string | undefined): string | undefined {

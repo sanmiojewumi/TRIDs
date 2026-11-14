@@ -16,7 +16,7 @@ describe('readInvoiceText', () => {
     expect(read.clientId).toBe('p');
     expect(read.newClient).toBeUndefined();
     expect(read.sitePostcode).toBe('CW1 2BP');
-    expect(read.siteAddress).toContain('Victoria Street');
+    expect(read.siteAddress).toBe('14 Victoria Street');
     expect(read.amount).toBe(45000);
     expect(read.description).toMatch(/Boiler/i);
     expect(read.workDates).toEqual(['2026-11-14']);
@@ -29,6 +29,7 @@ describe('readInvoiceText', () => {
     expect(read.newClient?.name).toBe('Mrs A Khan');
     expect(read.newClient?.phone).toBe('07123456789');
     expect(read.newClient?.postcode).toBe('CW5 5DG');
+    expect(read.siteAddress).toBe('8 Nantwich Road');
     expect(read.amount).toBe(8500);
     expect(read.description).toMatch(/Leak/i);
   });
@@ -46,6 +47,41 @@ describe('readInvoiceText', () => {
     expect(read.siteAddress).toContain('High Street');
     expect(read.description).toMatch(/Boiler/i);
     expect(read.workDates).toEqual([]);
+  });
+
+  it('keeps the first address line and postcode, and replaces upload invoice with Job', () => {
+    const text = [
+      'Tenants are still at the property',
+      '< Work Order, Updated Thursday, Nov 12th',
+      '12 King Street',
+      'Newcastle',
+      'ST5 3TZ',
+      'Job: Upload an invoice',
+      'Total £455.00',
+    ].join('\n');
+    const read = readInvoiceText(text, [mk('p', 'Preferred Management Solution Ltd')], today);
+    expect(read.siteAddress).toBe('12 King Street');
+    expect(read.sitePostcode).toBe('ST5 3TZ');
+    expect(read.description).toBe('Job');
+    expect(read.amount).toBe(45500);
+    expect(read.siteAddress).not.toMatch(/property|Work Order/i);
+  });
+
+  it('splits a one-line note into the street, postcode and job', () => {
+    const read = readInvoiceText('22 Queen Street, ST5 3TZ, boiler repair', [], today);
+    expect(read.siteAddress).toBe('22 Queen Street');
+    expect(read.sitePostcode).toBe('ST5 3TZ');
+    expect(read.description).toBe('boiler repair');
+  });
+
+  it('uses a typed note for the job and the first address line', () => {
+    const text = ['Work Order, Updated Thursday', 'ST5 3TZ', 'Upload an invoice', '£455'].join('\n');
+    const read = readInvoiceText(text, [], today, '22 Queen Street\nboiler repair');
+    expect(read.siteAddress).toBe('22 Queen Street');
+    expect(read.sitePostcode).toBe('ST5 3TZ');
+    expect(read.description).toBe('boiler repair');
+    expect(read.amount).toBe(45500);
+    expect(read.newClient).toBeUndefined();
   });
 
   it('ignores the Trids name on the business header', () => {
