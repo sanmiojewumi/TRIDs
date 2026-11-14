@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { formatWorkDates, todayISO } from '../dates';
 import { buildInvoiceData, emptyDraft, validateDraft } from '../invoice';
 import { formatMoney, lineTotal } from '../money';
-import { DEFAULT_DESCRIPTION } from '../seed';
+import { readImageText } from '../ocr';
+import { DEFAULT_DESCRIPTION, newClient } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
 import { nextRef } from '../refs';
+import { readInvoiceText } from '../screenshot';
 import { actions, templateFor, useStore } from '../store';
 import type { Draft, InvoiceRecord, LineItem } from '../types';
 import { MoneyField } from './MoneyField';
@@ -50,6 +52,10 @@ export function NewInvoice() {
   const [problems, setProblems] = useState<string[]>([]);
   const [detailed, setDetailed] = useState(false);
   const [more, setMore] = useState(false);
+  const [reading, setReading] = useState('');
+  const [shotNote, setShotNote] = useState('');
+  const [pendingPreview, setPendingPreview] = useState(false);
+  const shotRef = useRef<HTMLInputElement>(null);
 
   const setDraft = (patch: Partial<Draft>) =>
     setDraftRaw((d) => {
@@ -128,6 +134,64 @@ export function NewInvoice() {
     return buildInvoiceData(draft, client, templateFor(state, client), state.business, state.bank, ref);
   }, [draft, client, state]);
 
+  useEffect(() => {
+    if (!pendingPreview || !client) return;
+    const nextProblems = validateDraft(draft);
+    setProblems(nextProblems);
+    if (!nextProblems.length) setShowPreview(true);
+    setPendingPreview(false);
+  }, [pendingPreview, client, draft]);
+
+  const readShot = async (file: File) => {
+    setReading('Reading the screenshot…');
+    setShotNote('');
+    setProblems([]);
+    setUnderstood([]);
+    try {
+      const text = await readImageText(file, (status) => setReading(status === 'recognizing text' ? 'Reading the writing…' : 'Preparing the reader…'));
+      if (text.replace(/[^a-z0-9]/gi, '').length < 6) {
+        setShotNote('No writing could be read. Use a sharper screenshot, or type the details.');
+        return;
+      }
+      const read = readInvoiceText(text, state.clients);
+      let clientId = read.clientId;
+      if (!clientId && read.newClient?.name) {
+        const created = newClient({
+          name: read.newClient.name,
+          address: read.newClient.address,
+          postcode: read.newClient.postcode,
+          phone: read.newClient.phone,
+          email: read.newClient.email,
+          templateId: state.templates[0]?.id ?? '',
+        });
+        actions.saveClient(created);
+        clientId = created.id;
+      }
+      const patch: Partial<Draft> = {};
+      if (clientId) patch.clientId = clientId;
+      if (read.workDates.length) patch.workDates = read.workDates;
+      if (read.sitePostcode) patch.sitePostcode = read.sitePostcode;
+      if (read.siteAddress) patch.siteAddress = read.siteAddress;
+      if (read.amount != null || read.description) {
+        const items = [...draft.items];
+        const first: LineItem = { ...items[0], qty: 1 };
+        if (read.amount != null) first.rate = read.amount;
+        if (read.description) first.description = read.description;
+        items[0] = first;
+        patch.items = items;
+      }
+      setUnderstood(read.found);
+      setDraft(patch);
+      setShotNote(read.found.length ? 'Check the invoice. Save the PDF when it looks right.' : 'The picture was read, but the details were not clear enough to fill the form.');
+      if (clientId && read.amount != null && (read.siteAddress || read.sitePostcode)) setPendingPreview(true);
+    } catch (err) {
+      setShotNote(err instanceof Error ? err.message : 'Could not read that picture.');
+    } finally {
+      setReading('');
+      if (shotRef.current) shotRef.current.value = '';
+    }
+  };
+
   const openPreview = () => {
     const p = validateDraft(draft);
     setProblems(p);
@@ -168,6 +232,25 @@ export function NewInvoice() {
           You need at least one client. <a href="#/clients">Add a client</a> (or load sample clients from Settings).
         </div>
       )}
+
+      <div class="card">
+        <h2>Screenshot</h2>
+        <p class="hint">Choose a screenshot of the job details. The writing is read on this phone and the invoice is filled in.</p>
+        <input
+          ref={shotRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (file) void readShot(file);
+          }}
+        />
+        <button class="btn primary" type="button" disabled={!!reading} onClick={() => shotRef.current?.click()}>
+          {reading || 'Read a screenshot'}
+        </button>
+        {shotNote && <p class="hint">{shotNote}</p>}
+      </div>
 
       <div class="card">
         <label class="field">
