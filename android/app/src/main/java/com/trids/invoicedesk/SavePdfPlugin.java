@@ -46,20 +46,16 @@ public class SavePdfPlugin extends Plugin {
 
     @PluginMethod
     public void pickFolder(PluginCall call) {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addFlags(
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
-        );
-        intent.putExtra("android.content.extra.SHOW_ADVANCED", true);
-        if (Build.VERSION.SDK_INT >= 26) {
-            intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Open your folder, then tap Use this folder");
-            String stored = prefs().getString(TREE, null);
-            if (stored != null) intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse(stored));
+        if (getActivity() == null) {
+            call.reject("The app is not ready to open folders. Close it, open it again, then try Choose folder.");
+            return;
         }
-        startActivityForResult(call, intent, "onFolderPicked");
+        Intent intent = new Intent(getActivity(), FolderPickerActivity.class);
+        try {
+            startActivityForResult(call, intent, "onFolderPicked");
+        } catch (Exception err) {
+            call.reject(err.getMessage() == null ? "Could not open the folder list." : err.getMessage());
+        }
     }
 
     @ActivityCallback

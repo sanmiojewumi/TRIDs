@@ -9,6 +9,7 @@ export function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
   const [folder, setFolder] = useState<string | null>(null);
+  const [folderMsg, setFolderMsg] = useState('');
   useEffect(() => {
     if (!isNativeApp()) return;
     void connectedFolder().then(setFolder);
@@ -171,18 +172,24 @@ export function Settings() {
           </p>
           <button
             class="btn"
+            type="button"
             onClick={() => {
+              setFolderMsg('Opening your phone folders…');
               void connectFolder()
                 .then((name) => {
-                  if (!name) return;
+                  if (!name) {
+                    setFolderMsg('The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.');
+                    return;
+                  }
                   setFolder(name);
-                  setMsg(`Connected to ${name}.`);
+                  setFolderMsg(`Invoices will be saved in ${name}.`);
                 })
-                .catch((err: unknown) => setMsg(err instanceof Error ? err.message : 'Could not open the folder picker.'));
+                .catch((err: unknown) => setFolderMsg(err instanceof Error ? err.message : 'Could not open the folder list.'));
             }}
           >
             {folder ? 'Change folder' : 'Choose folder'}
           </button>
+          {folderMsg && <p class="hint" role="status">{folderMsg}</p>}
         </div>
       )}
 

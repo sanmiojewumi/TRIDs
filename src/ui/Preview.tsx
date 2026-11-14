@@ -93,7 +93,10 @@ export function Preview(props: Props) {
     setNotice('');
     try {
       const name = await connectFolder();
-      if (!name) return;
+      if (!name) {
+        setError('The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.');
+        return;
+      }
       setFolder(name);
       setNotice(`Invoices will be saved in ${name}. Tap download to put the PDF there.`);
     } catch (e) {
