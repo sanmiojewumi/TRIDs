@@ -7,8 +7,10 @@ const defaultSettings = (): RouteSettings => ({
   startAddress: 'Crewe, CW1',
   startMode: 'address',
   departAt: '08:00',
-  serviceMinutes: 20,
+  serviceMinutes: 10,
   navApp: 'google',
+  vehicle: 'car',
+  avoidTolls: false,
 });
 
 function fresh(): AppState {
@@ -20,7 +22,13 @@ function load(): AppState {
     const raw = localStorage.getItem(KEY);
     if (!raw) return fresh();
     const parsed = JSON.parse(raw) as AppState;
-    return { ...fresh(), ...parsed, settings: { ...defaultSettings(), ...parsed.settings }, days: parsed.days ?? [] };
+    const days = (parsed.days ?? []).map((day, index) => ({
+      ...emptyDay(day.date || todayISO(), { ...defaultSettings(), ...parsed.settings }, day.name || ''),
+      ...day,
+      id: day.id || `${day.date || 'route'}-${index}`,
+      name: day.name || '',
+    }));
+    return { ...fresh(), ...parsed, settings: { ...defaultSettings(), ...parsed.settings }, days };
   } catch {
     return fresh();
   }
@@ -64,8 +72,10 @@ export function blankStop(serviceMinutes: number): Stop {
   };
 }
 
-function emptyDay(date: string, settings: RouteSettings): DayPlan {
+function emptyDay(date: string, settings: RouteSettings, name = ''): DayPlan {
   return {
+    id: crypto.randomUUID(),
+    name,
     date,
     startAddress: settings.startAddress,
     startMode: settings.startMode,
@@ -80,19 +90,28 @@ function emptyDay(date: string, settings: RouteSettings): DayPlan {
 }
 
 export const actions = {
-  day(date: string): DayPlan {
-    return state.days.find((day) => day.date === date) ?? emptyDay(date, state.settings);
+  route(id: string): DayPlan | null {
+    return state.days.find((day) => day.id === id) ?? null;
   },
-  saveDay(day: DayPlan) {
-    const days = state.days.filter((item) => item.date !== day.date);
-    commit({ ...state, days: [...days, day].sort((a, b) => b.date.localeCompare(a.date)) });
+  saveRoute(day: DayPlan) {
+    const days = state.days.filter((item) => item.id !== day.id);
+    commit({ ...state, days: [...days, day].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name)) });
+  },
+  createRoute(date: string, name: string): DayPlan {
+    const day = emptyDay(date, state.settings, name.trim());
+    actions.saveRoute(day);
+    return day;
+  },
+  removeRoute(id: string) {
+    commit({ ...state, days: state.days.filter((day) => day.id !== id) });
   },
   setSettings(settings: RouteSettings) {
     commit({ ...state, settings });
   },
-  setStopStatus(date: string, id: string, status: StopStatus) {
-    const day = actions.day(date);
-    actions.saveDay({
+  setStopStatus(routeId: string, id: string, status: StopStatus) {
+    const day = actions.route(routeId);
+    if (!day) return;
+    actions.saveRoute({
       ...day,
       stops: day.stops.map((stop) => (stop.id === id ? { ...stop, status, doneAt: status === 'done' ? new Date().toISOString() : undefined } : stop)),
     });

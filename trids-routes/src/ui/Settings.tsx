@@ -1,45 +1,55 @@
 import { actions, useStore } from '../store';
-import { NavChoice } from './NavChoice';
+import type { NavApp } from '../types';
 
-export function Settings() {
+export function Settings(props: { onBack: () => void }) {
   const state = useStore();
   const settings = state.settings;
   const set = (patch: Partial<typeof settings>) => actions.setSettings({ ...settings, ...patch });
+  const nav: NavApp = settings.navApp === 'waze' ? 'google' : 'waze';
   return (
-    <section class="page-wrap">
-      <h1>Settings</h1>
-      <div class="card">
+    <div class="screen">
+      <header class="screen-bar">
+        <button type="button" class="icon-btn" aria-label="Back" onClick={props.onBack}>←</button>
+        <h1>Settings</h1>
+      </header>
+      <div class="screen-body prefs">
+        <h2>Route preferences</h2>
+        <button type="button" class="pref" onClick={() => set({ navApp: nav })}>
+          <span>Navigation app</span>
+          <strong>{settings.navApp === 'waze' ? 'Waze' : 'Google Maps'}</strong>
+        </button>
+        <label class="pref">
+          <span>Average time at stop</span>
+          <input
+            inputMode="numeric"
+            aria-label="Average time at stop in minutes"
+            value={String(settings.serviceMinutes)}
+            onInput={(event) => set({ serviceMinutes: Math.max(0, Number((event.target as HTMLInputElement).value) || 0) })}
+          />
+          <em>min</em>
+        </label>
+        <button type="button" class="pref" onClick={() => set({ vehicle: settings.vehicle === 'car' ? 'van' : 'car' })}>
+          <span>Vehicle type</span>
+          <strong>{settings.vehicle === 'van' ? 'Van' : 'Car'}</strong>
+        </button>
+        <label class="pref toggle">
+          <span>
+            Avoid tolls
+            <small>Save costs by avoiding toll roads</small>
+          </span>
+          <input type="checkbox" checked={settings.avoidTolls} onChange={(event) => set({ avoidTolls: (event.target as HTMLInputElement).checked })} />
+        </label>
         <h2>Usual start</h2>
-        <label class="field">
+        <label class="pref">
           <span>Start address</span>
           <input value={settings.startAddress} onInput={(event) => set({ startAddress: (event.target as HTMLInputElement).value })} />
         </label>
-        <div class="grid2">
-          <label class="field">
-            <span>Usual set-off time</span>
-            <input type="time" value={settings.departAt} onInput={(event) => set({ departAt: (event.target as HTMLInputElement).value })} />
-          </label>
-          <label class="field">
-            <span>Usual time on site (minutes)</span>
-            <input
-              inputMode="numeric"
-              value={String(settings.serviceMinutes)}
-              onInput={(event) => set({ serviceMinutes: Math.max(0, Number((event.target as HTMLInputElement).value) || 0) })}
-            />
-          </label>
-        </div>
-        <p class="hint">New days start with these. On the day itself you can switch to your GPS location.</p>
+        <label class="pref">
+          <span>Set-off time</span>
+          <input type="time" value={settings.departAt} onInput={(event) => set({ departAt: (event.target as HTMLInputElement).value })} />
+        </label>
+        <p class="hint">New routes start with these. On the map, the ⋮ menu can switch a route to your GPS location. Avoid tolls is sent to the road router when it accepts that option.</p>
       </div>
-      <div class="card">
-        <h2>Satnav</h2>
-        <p class="hint">One choice for the whole route. It is used for every stop, and for the button that opens the arranged route.</p>
-        <NavChoice value={settings.navApp} onChange={(navApp) => set({ navApp })} />
-      </div>
-      <div class="card">
-        <h2>Install</h2>
-        <p class="hint">On Android, install Trids Routes from the APK file. It is a normal app and does not need a browser.</p>
-        <p class="hint">On iPhone, open this app in Safari, tap Share, then Add to Home Screen. Apple does not allow an install file without an Apple developer account and a Mac, so that home-screen app is the iPhone version.</p>
-      </div>
-    </section>
+    </div>
   );
 }

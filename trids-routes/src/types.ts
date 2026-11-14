@@ -25,6 +25,9 @@ export interface LatLon {
 export type StartMode = 'address' | 'gps';
 
 export interface DayPlan {
+  id: string;
+  /** Optional label such as "Saturday Route". */
+  name: string;
   date: string;
   startAddress: string;
   startMode?: StartMode;
@@ -48,6 +51,8 @@ export interface DayPlan {
 
 export type NavApp = 'google' | 'waze';
 
+export type Vehicle = 'car' | 'van';
+
 export interface RouteSettings {
   startAddress: string;
   startMode: StartMode;
@@ -55,6 +60,9 @@ export interface RouteSettings {
   serviceMinutes: number;
   /** Satnav used for the whole route. */
   navApp: NavApp;
+  vehicle: Vehicle;
+  /** Ask the road router to leave out toll roads when it can. */
+  avoidTolls: boolean;
 }
 
 export interface AppState {

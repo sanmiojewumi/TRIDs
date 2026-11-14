@@ -16,8 +16,9 @@ export function StopForm(props: { initial: Stop | null; serviceMinutes: number; 
   };
 
   return (
-    <div class="card">
-      <h2>{props.initial ? 'Edit stop' : 'New stop'}</h2>
+    <div class="screen-body">
+      <button type="button" class="icon-btn" aria-label="Close" onClick={props.onClose}>×</button>
+      <h1>{props.initial ? 'Edit stop' : 'Add stop'}</h1>
       <label class="field">
         <span>Client name</span>
         <input value={stop.name} onInput={(event) => set({ name: (event.target as HTMLInputElement).value })} />

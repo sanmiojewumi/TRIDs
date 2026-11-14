@@ -14,7 +14,7 @@ export function History() {
       {days.map((day) => {
         const done = day.stops.filter((stop) => stop.status === 'done').length;
         return (
-          <button class="card history" key={day.date} onClick={() => setOpen(day)}>
+          <button class="card history" key={day.id} onClick={() => setOpen(day)}>
             <strong>{formatDate(day.date)}</strong>
             <span class="muted">
               {day.stops.length} trips · {done} completed{day.finished ? ' · day finished' : ''}
@@ -32,7 +32,8 @@ export function History() {
             <RouteMap
               start={open.routeLine[0]}
               line={open.routeLine}
-              stops={open.stops.flatMap((stop, index) => (stop.lat == null || stop.lon == null ? [] : [{ lat: stop.lat, lon: stop.lon, label: String(index + 1) }]))}
+              stops={open.stops.flatMap((stop, index) => (stop.lat == null || stop.lon == null ? [] : [{ id: stop.id, lat: stop.lat, lon: stop.lon, label: String(index + 1) }]))}
+              onSelect={() => undefined}
             />
           )}
           <ol class="history-list">

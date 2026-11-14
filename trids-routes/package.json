@@ -1,6 +1,6 @@
 {
   "name": "trids-routes",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "Local route planner for a day's client visits. Optimises the order and opens Waze, Google Maps or Apple Maps.",

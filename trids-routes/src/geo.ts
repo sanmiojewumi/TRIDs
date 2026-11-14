@@ -131,12 +131,12 @@ async function fallbackPlaces(address: string): Promise<Place[]> {
 }
 
 /** Road line through the points, for the map shown before a satnav is opened. */
-export async function drivePath(points: { lat: number; lon: number }[]): Promise<{ lat: number; lon: number }[]> {
+export async function drivePath(points: { lat: number; lon: number }[], avoidTolls = false): Promise<{ lat: number; lon: number }[]> {
   if (points.length < 2) return points;
   const path = points.map((point) => `${point.lon},${point.lat}`).join(';');
   try {
-    const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${path}?overview=simplified&geometries=geojson`);
-    if (!response.ok) return points;
+    const response = await osrm(`https://router.project-osrm.org/route/v1/driving/${path}?overview=simplified&geometries=geojson`, avoidTolls);
+    if (!response?.ok) return points;
     const body = (await response.json()) as { code?: string; routes?: { geometry?: { coordinates?: [number, number][] } }[] };
     const coordinates = body.code === 'Ok' ? body.routes?.[0]?.geometry?.coordinates : undefined;
     if (!coordinates?.length) return points;
@@ -147,15 +147,30 @@ export async function drivePath(points: { lat: number; lon: number }[]): Promise
 }
 
 /** Drive minutes between points. Index 0 is the start of the day. */
-export async function driveMinutes(points: { lat: number; lon: number }[]): Promise<number[][]> {
+export async function driveMinutes(points: { lat: number; lon: number }[], avoidTolls = false): Promise<number[][]> {
   if (points.length < 2) return points.map(() => points.map(() => 0));
   const path = points.map((point) => `${point.lon},${point.lat}`).join(';');
-  const url = `https://router.project-osrm.org/table/v1/driving/${path}?annotations=duration`;
-  const response = await fetch(url);
-  if (!response.ok) return estimate(points);
+  const response = await osrm(`https://router.project-osrm.org/table/v1/driving/${path}?annotations=duration`, avoidTolls);
+  if (!response?.ok) return estimate(points);
   const body = (await response.json()) as { code?: string; durations?: (number | null)[][] };
   if (body.code !== 'Ok' || !body.durations) return estimate(points);
   return body.durations.map((row) => row.map((seconds) => Math.max(1, Math.round((seconds ?? 0) / 60))));
+}
+
+async function osrm(url: string, avoidTolls: boolean): Promise<Response | null> {
+  const withTolls = avoidTolls ? `${url}&exclude=toll` : url;
+  try {
+    const response = await fetch(withTolls);
+    if (response.ok || !avoidTolls) return response;
+    return fetch(url);
+  } catch {
+    if (!avoidTolls) return null;
+    try {
+      return await fetch(url);
+    } catch {
+      return null;
+    }
+  }
 }
 
 function estimate(points: { lat: number; lon: number }[]): number[][] {
