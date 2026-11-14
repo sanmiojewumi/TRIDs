@@ -53,7 +53,10 @@ public class SavePdfPlugin extends Plugin {
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         );
-        if (Build.VERSION.SDK_INT >= 26) intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Select the Trids apps folder");
+        if (Build.VERSION.SDK_INT >= 26) {
+            intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Choose the folder invoices are saved in");
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.parse("content://com.android.externalstorage.documents/document/primary:"));
+        }
         startActivityForResult(call, intent, "onFolderPicked");
     }
 
@@ -79,7 +82,7 @@ public class SavePdfPlugin extends Plugin {
         if (bytes == null) return;
         String stored = prefs().getString(TREE, null);
         if (stored == null) {
-            call.reject("Choose the Trids apps folder first.");
+            call.reject("Choose a folder first.");
             return;
         }
         try {
@@ -90,9 +93,9 @@ public class SavePdfPlugin extends Plugin {
             call.resolve(ret);
         } catch (SecurityException e) {
             prefs().edit().remove(TREE).apply();
-            call.reject("The Trids apps folder needs to be chosen again.");
+            call.reject("That folder needs to be chosen again.");
         } catch (Exception e) {
-            call.reject("Could not save into the Trids apps folder");
+            call.reject("Could not save into the chosen folder");
         }
     }
 
@@ -107,7 +110,7 @@ public class SavePdfPlugin extends Plugin {
             ret.put("connected", false);
             return ret;
         }
-        String name = "Trids apps";
+        String name = "chosen folder";
         try {
             Uri tree = Uri.parse(stored);
             Uri doc = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));

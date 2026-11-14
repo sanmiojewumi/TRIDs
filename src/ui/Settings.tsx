@@ -163,11 +163,11 @@ export function Settings() {
 
       {isNativeApp() && (
         <div class="card">
-          <h2>Trids apps folder</h2>
+          <h2>Invoice folder</h2>
           <p class="hint">
             {folder
-              ? `Finished invoices are saved in ${folder}.`
-              : 'Choose the Trids apps folder in Internal storage. Every finished invoice is saved there from then on.'}
+              ? `Finished invoices are saved in ${folder}. Download uses this folder.`
+              : 'Choose any folder, such as Trids apps in Internal storage. Download saves every finished invoice there.'}
           </p>
           <button
             class="btn"
@@ -181,7 +181,7 @@ export function Settings() {
                 .catch((err: unknown) => setMsg(err instanceof Error ? err.message : 'Could not open the folder picker.'));
             }}
           >
-            {folder ? 'Change folder' : 'Choose Trids apps folder'}
+            {folder ? 'Change folder' : 'Choose folder'}
           </button>
         </div>
       )}
