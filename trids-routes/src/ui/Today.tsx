@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { driveMinutes, drivePath, geocode } from '../geo';
+import { driveMinutes, drivePath, lookupAddress, remember, reverseGeocode } from '../geo';
+import type { Place } from '../geo';
+import { readGps } from '../location';
 import { googleRouteUrl, stopNavUrl } from '../nav';
 import { optimiseRoute, windowFrom } from '../optimize';
 import { actions, todayISO, useStore } from '../store';
@@ -18,11 +20,16 @@ export function Today() {
   const [editing, setEditing] = useState<Stop | null>(null);
   const [open, setOpen] = useState(false);
   const [arranged, setArranged] = useState(0);
+  const [ask, setAsk] = useState<{ target: 'start' | string; query: string; message: string; suggestions: Place[] } | null>(null);
   const preview = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (arranged) preview.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [arranged]);
+
+  useEffect(() => {
+    if (ask) document.querySelector('.ask')?.scrollIntoView({ block: 'start' });
+  }, [ask]);
 
   const save = (next: DayPlan) => actions.saveDay({ ...next, optimized: false, routeLine: undefined });
 
@@ -35,13 +42,50 @@ export function Today() {
 
   const remove = (id: string) => save({ ...day, stops: day.stops.filter((stop) => stop.id !== id), eta: [], late: [], travel: [] });
 
-  const plan = async () => {
+  const useMyLocation = async () => {
     setError('');
-    if (!day.startAddress.trim()) {
-      setError('Enter the address you are starting from.');
+    setAsk(null);
+    setBusy(true);
+    try {
+      const position = await readGps();
+      const place = await reverseGeocode(position.lat, position.lon);
+      const current = actions.day(date);
+      actions.saveDay({ ...current, startMode: 'gps', startAddress: place.label, startLat: place.lat, startLon: place.lon, optimized: false, routeLine: undefined, returnMinutes: undefined });
+      actions.setSettings({ ...state.settings, startMode: 'gps' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read your location.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const acceptPlace = (place: Place) => {
+    if (!ask) return;
+    const current = actions.day(date);
+    remember(ask.query, place);
+    if (ask.target === 'start') {
+      actions.saveDay({ ...current, startMode: 'address', startAddress: place.label, startLat: place.lat, startLon: place.lon, optimized: false, routeLine: undefined, returnMinutes: undefined });
+    } else {
+      actions.saveDay({
+        ...current,
+        optimized: false,
+        routeLine: undefined,
+        returnMinutes: undefined,
+        stops: current.stops.map((stop) => (stop.id === ask.target ? { ...stop, lat: place.lat, lon: place.lon, placeLabel: place.label } : stop)),
+      });
+    }
+    setAsk(null);
+    void plan();
+  };
+
+  const plan = async () => {
+    const current = actions.day(date);
+    setError('');
+    if (current.startMode !== 'gps' && !current.startAddress.trim()) {
+      setError('Enter the address you are starting from, or use your location.');
       return;
     }
-    const pending = day.stops.filter((stop) => stop.status === 'pending');
+    const pending = current.stops.filter((stop) => stop.status === 'pending');
     if (!pending.length) {
       setError('Add a stop first.');
       return;
@@ -50,22 +94,51 @@ export function Today() {
       setError('Every stop needs an address.');
       return;
     }
-    const depart = parseTime(day.departAt);
+    const depart = parseTime(current.departAt);
     if (depart == null) {
       setError('Enter the time you want to set off, like 08:00.');
       return;
     }
     setBusy(true);
     try {
-      const done = day.stops.filter((stop) => stop.status !== 'pending');
+      const done = current.stops.filter((stop) => stop.status !== 'pending');
       const originStop = [...done].reverse().find((stop) => stop.lat != null && stop.lon != null);
-      const origin = originStop ? { lat: originStop.lat!, lon: originStop.lon! } : await geocode(day.startAddress);
-      const leaveAt = originStop ? minutesNow() : depart;
+      let origin = originStop ? { lat: originStop.lat!, lon: originStop.lon!, label: current.startAddress } : null;
+      if (!origin) {
+        if (current.startMode === 'gps' && current.startLat == null) {
+          setError('Tap My location so the route can start from where you are, or choose a preferred address.');
+          return;
+        }
+        if (current.startLat != null && current.startLon != null) origin = { lat: current.startLat, lon: current.startLon, label: current.startAddress };
+        else {
+          const found = await lookupAddress(current.startAddress);
+          if (!found.ok) {
+            setAsk({ target: 'start', query: current.startAddress, message: found.message, suggestions: found.suggestions });
+            return;
+          }
+          origin = found.place;
+        }
+      }
       const located: Stop[] = [];
       for (const stop of pending) {
-        const place = await geocode(stop.address);
-        located.push({ ...stop, lat: place.lat, lon: place.lon });
+        if (stop.lat != null && stop.lon != null) {
+          located.push(stop);
+          continue;
+        }
+        const found = await lookupAddress(stop.address);
+        if (!found.ok) {
+          actions.saveDay({
+            ...current,
+            optimized: false,
+            routeLine: undefined,
+            stops: current.stops.map((item) => located.find((ready) => ready.id === item.id) ?? item),
+          });
+          setAsk({ target: stop.id, query: stop.address, message: found.message, suggestions: found.suggestions });
+          return;
+        }
+        located.push({ ...stop, lat: found.place.lat, lon: found.place.lon, placeLabel: found.place.label });
       }
+      const leaveAt = originStop ? minutesNow() : depart;
       const matrix = await driveMinutes([{ lat: origin.lat, lon: origin.lon }, ...located.map((stop) => ({ lat: stop.lat!, lon: stop.lon! }))]);
       const result = optimiseRoute(
         matrix,
@@ -74,20 +147,23 @@ export function Today() {
         located.map((stop) => stop.serviceMinutes || state.settings.serviceMinutes),
       );
       const ordered = result.order.map((index) => located[index]);
+      const last = result.order[result.order.length - 1];
       const eta = result.arrival.map((minute) => formatTime(minute));
       const routeLine = await drivePath([{ lat: origin.lat, lon: origin.lon }, ...ordered.map((stop) => ({ lat: stop.lat!, lon: stop.lon! }))]);
       actions.saveDay({
-        ...day,
-        startAddress: day.startAddress.trim(),
-        startLat: originStop ? day.startLat : origin.lat,
-        startLon: originStop ? day.startLon : origin.lon,
+        ...current,
+        startAddress: current.startMode === 'gps' ? current.startAddress : origin.label || current.startAddress.trim(),
+        startLat: originStop ? current.startLat : origin.lat,
+        startLon: originStop ? current.startLon : origin.lon,
         stops: [...done, ...ordered],
         travel: [...done.map(() => 0), ...result.travel],
-        eta: [...done.map((_, index) => day.eta[index] ?? ''), ...eta],
+        eta: [...done.map((_, index) => current.eta[index] ?? ''), ...eta],
         late: [...done.map(() => 0), ...result.late],
         routeLine,
+        returnMinutes: last == null ? undefined : matrix[last + 1][0],
         optimized: true,
       });
+      setAsk(null);
       setArranged((value) => value + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not plan the route.');
@@ -107,23 +183,66 @@ export function Today() {
           <span>Date</span>
           <input type="date" value={date} onInput={(event) => setDate((event.target as HTMLInputElement).value)} />
         </label>
-        <div class="grid2">
-          <label class="field">
-            <span>Set off at</span>
-            <input type="time" value={day.departAt} onInput={(event) => save({ ...day, departAt: (event.target as HTMLInputElement).value })} />
-          </label>
-          <label class="field">
-            <span>Start from</span>
-            <input value={day.startAddress} onInput={(event) => save({ ...day, startAddress: (event.target as HTMLInputElement).value, startLat: undefined, startLon: undefined })} />
-          </label>
+        <label class="field">
+          <span>Set off at</span>
+          <input type="time" value={day.departAt} onInput={(event) => save({ ...day, departAt: (event.target as HTMLInputElement).value })} />
+        </label>
+        <span class="field"><span>Start from</span></span>
+        <div class="choice" role="group" aria-label="Starting point">
+          <button
+            type="button"
+            class={day.startMode === 'gps' ? 'btn' : 'btn primary'}
+            onClick={() => {
+              if (day.startMode === 'gps') save({ ...day, startMode: 'address', startLat: undefined, startLon: undefined, startAddress: state.settings.startAddress || day.startAddress });
+            }}
+          >
+            Preferred address
+          </button>
+          <button type="button" class={day.startMode === 'gps' ? 'btn primary' : 'btn'} disabled={busy} onClick={useMyLocation}>
+            My location
+          </button>
         </div>
-        <p class="hint">Optimise first. The map shows the order before any satnav opens.</p>
+        {day.startMode === 'gps' ? (
+          <p class="hint">{day.startLat != null ? `GPS: ${day.startAddress}` : 'Reads the phone’s GPS. Allow location when asked.'}</p>
+        ) : (
+          <input value={day.startAddress} aria-label="Preferred address" onInput={(event) => save({ ...day, startMode: 'address', startAddress: (event.target as HTMLInputElement).value, startLat: undefined, startLon: undefined })} />
+        )}
+        <p class="hint">{day.stops.length ? `${doneCount} of ${day.stops.length} trips completed. ` : ''}Optimise to see the order before a satnav opens.</p>
       </div>
+
+      {ask && (
+        <div class="card ask">
+          <h2>Choose the right place</h2>
+          <p class="hint">{ask.message}</p>
+          {ask.suggestions.map((place) => (
+            <button key={place.label} type="button" class="btn place" onClick={() => acceptPlace(place)}>
+              {place.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            class="btn"
+            onClick={() => {
+              const target = ask.target;
+              setAsk(null);
+              if (target !== 'start') {
+                const stop = day.stops.find((item) => item.id === target);
+                if (stop) {
+                  setEditing(stop);
+                  setOpen(true);
+                }
+              }
+            }}
+          >
+            {ask.suggestions.length ? 'None of these — edit the address' : 'Edit the address'}
+          </button>
+        </div>
+      )}
 
       {day.optimized && <RoutePreview day={day} preview={preview} navApp={state.settings.navApp} onNavApp={(navApp) => actions.setSettings({ ...state.settings, navApp })} />}
 
       {day.stops.map((stop, index) => (
-        <article class={`card stop ${stop.status}`} key={stop.id}>
+        <article class={`card stop ${stop.status}${stop.status === 'pending' && day.stops.find((item) => item.status === 'pending')?.id === stop.id ? ' next' : ''}`} key={stop.id}>
           <div class="stop-head">
             <span class="seq">{index + 1}</span>
             <div>
@@ -136,6 +255,7 @@ export function Today() {
             {stop.windowStart || stop.windowEnd ? `Window ${stop.windowStart || 'any'}–${stop.windowEnd || 'any'}` : 'No time window'}
             {stop.phone ? ` · ${stop.phone}` : ''}
             {day.travel[index] ? ` · ${day.travel[index]} min drive` : ''}
+            {stop.status === 'done' && stop.doneAt ? ` · Completed ${new Date(stop.doneAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}
           </div>
           {stop.notes && <p class="hint">{stop.notes}</p>}
           <div class="row wrap">
@@ -149,8 +269,8 @@ export function Today() {
             </a>
           </div>
           <div class="row wrap">
-            <button class="btn small" onClick={() => actions.setStopStatus(date, stop.id, stop.status === 'done' ? 'pending' : 'done')}>
-              {stop.status === 'done' ? 'Undo done' : 'Done'}
+            <button class={stop.status === 'done' ? 'btn small' : 'btn small gold'} onClick={() => actions.setStopStatus(date, stop.id, stop.status === 'done' ? 'pending' : 'done')}>
+              {stop.status === 'done' ? 'Undo complete' : 'Complete trip'}
             </button>
             <button class="btn small" onClick={() => actions.setStopStatus(date, stop.id, stop.status === 'skipped' ? 'pending' : 'skipped')}>
               {stop.status === 'skipped' ? 'Undo skip' : 'Skip'}
@@ -184,7 +304,7 @@ export function Today() {
       )}
 
       {error && <div class="error">{error}</div>}
-      <div class="sticky-actions">
+      {!ask && <div class="sticky-actions">
         <button class="btn" onClick={() => { setEditing(null); setOpen(true); }}>
           Add stop
         </button>
@@ -197,7 +317,7 @@ export function Today() {
             {busy ? 'Planning…' : 'Optimise route'}
           </button>
         )}
-      </div>
+      </div>}
       {day.optimized && (
         <button class="btn" disabled={busy} onClick={plan}>
           {busy ? 'Planning…' : 'Optimise again'}
@@ -208,7 +328,7 @@ export function Today() {
           class="btn"
           onClick={() => actions.saveDay({ ...day, finished: !day.finished })}
         >
-          {day.finished ? 'Reopen this day' : `Finish day (${doneCount}/${day.stops.length} done)`}
+          {day.finished ? 'Reopen this day' : `Finish day (${doneCount}/${day.stops.length} trips completed)`}
         </button>
       )}
     </section>
@@ -250,6 +370,7 @@ function RoutePreview(props: { day: DayPlan; preview: preact.RefObject<HTMLDivEl
       <h2>Arranged route</h2>
       <p class="hint">
         {props.day.stops.length} stops · {drive} min driving{last ? ` · last arrival ${last}` : ''}
+        {props.day.returnMinutes ? ` · ${props.day.returnMinutes} min back to the start` : ''}
         {late ? ` · ${late} late` : ''}. This is the order before a satnav opens.
       </p>
       {props.day.routeLine && props.day.routeLine.length > 1 && <RouteMap start={depart} stops={pins} line={props.day.routeLine} />}

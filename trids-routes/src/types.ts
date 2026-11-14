@@ -11,6 +11,8 @@ export interface Stop {
   serviceMinutes: number;
   lat?: number;
   lon?: number;
+  /** The place chosen when the typed address matched more than one result. */
+  placeLabel?: string;
   status: StopStatus;
   doneAt?: string;
 }
@@ -20,9 +22,12 @@ export interface LatLon {
   lon: number;
 }
 
+export type StartMode = 'address' | 'gps';
+
 export interface DayPlan {
   date: string;
   startAddress: string;
+  startMode?: StartMode;
   startLat?: number;
   startLon?: number;
   departAt: string;
@@ -35,6 +40,8 @@ export interface DayPlan {
   late: number[];
   /** Road line for the latest arranged route, including the start. */
   routeLine?: LatLon[];
+  /** Drive minutes from the last stop back to the start. */
+  returnMinutes?: number;
   optimized: boolean;
   finished: boolean;
 }
@@ -43,6 +50,7 @@ export type NavApp = 'google' | 'waze';
 
 export interface RouteSettings {
   startAddress: string;
+  startMode: StartMode;
   departAt: string;
   serviceMinutes: number;
   /** Satnav used for the whole route. */

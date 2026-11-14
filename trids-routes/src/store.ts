@@ -5,6 +5,7 @@ const KEY = 'trids-routes.v1';
 
 const defaultSettings = (): RouteSettings => ({
   startAddress: 'Crewe, CW1',
+  startMode: 'address',
   departAt: '08:00',
   serviceMinutes: 20,
   navApp: 'google',
@@ -67,6 +68,7 @@ function emptyDay(date: string, settings: RouteSettings): DayPlan {
   return {
     date,
     startAddress: settings.startAddress,
+    startMode: settings.startMode,
     departAt: settings.departAt,
     stops: [],
     travel: [],

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import logo from '../assets/trids-logo.png';
 import { History } from './History';
 import { Settings } from './Settings';
 import { Today } from './Today';
@@ -23,6 +24,13 @@ export function App() {
   }, []);
   return (
     <div class="shell">
+      <header class="topbar">
+        <img src={logo} alt="Trids Gas and Plumbing" />
+        <div>
+          <strong>Routes</strong>
+          <span>Gas and Plumbing</span>
+        </div>
+      </header>
       <main>
         {path === '/today' && <Today />}
         {path === '/history' && <History />}

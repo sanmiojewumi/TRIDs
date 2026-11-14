@@ -17,7 +17,7 @@ export function History() {
           <button class="card history" key={day.date} onClick={() => setOpen(day)}>
             <strong>{formatDate(day.date)}</strong>
             <span class="muted">
-              {day.stops.length} stops · {done} done{day.finished ? ' · finished' : ''}
+              {day.stops.length} trips · {done} completed{day.finished ? ' · day finished' : ''}
             </span>
           </button>
         );
@@ -41,7 +41,7 @@ export function History() {
                 <strong>{stop.name || stop.address}</strong>
                 <div class="muted">
                   {stop.address}
-                  {stop.status === 'done' ? ' · done' : stop.status === 'skipped' ? ' · skipped' : ''}
+                  {stop.status === 'done' ? ` · completed${stop.doneAt ? ` ${new Date(stop.doneAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}` : stop.status === 'skipped' ? ' · skipped' : ''}
                   {open.eta[open.stops.indexOf(stop)] ? ` · ${open.eta[open.stops.indexOf(stop)]}` : ''}
                 </div>
               </li>

@@ -23,7 +23,7 @@ export function RouteMap(props: { start?: LatLon; stops: MapStop[]; line: LatLon
     if (props.line.length > 1) {
       const drawn = L.polyline(
         props.line.map((point) => [point.lat, point.lon] as L.LatLngExpression),
-        { color: '#0f6b4c', weight: 5, opacity: 0.9 },
+        { color: '#1a4f8b', weight: 5, opacity: 0.9 },
       ).addTo(map);
       bounds.push(...(drawn.getLatLngs() as L.LatLng[]));
     }

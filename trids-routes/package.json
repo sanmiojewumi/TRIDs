@@ -1,6 +1,6 @@
 {
   "name": "trids-routes",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Local route planner for a day's client visits. Optimises the order and opens Waze, Google Maps or Apple Maps.",
@@ -14,6 +14,7 @@
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
+    "@capacitor/geolocation": "^8.2.4",
     "leaflet": "^1.9.4",
     "preact": "^11.2.0"
   },

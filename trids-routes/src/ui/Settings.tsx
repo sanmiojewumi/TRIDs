@@ -28,7 +28,7 @@ export function Settings() {
             />
           </label>
         </div>
-        <p class="hint">New days start with these. A day you have already opened keeps the times you set on it.</p>
+        <p class="hint">New days start with these. On the day itself you can switch to your GPS location.</p>
       </div>
       <div class="card">
         <h2>Satnav</h2>
