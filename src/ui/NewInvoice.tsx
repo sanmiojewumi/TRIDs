@@ -148,7 +148,8 @@ export function NewInvoice() {
     setProblems([]);
     setUnderstood([]);
     try {
-      const text = await readImageText(file, (status) => setReading(status === 'recognizing text' ? 'Reading the writing…' : 'Preparing the reader…'));
+      setReading('Reading the writing…');
+      const text = await readImageText(file);
       if (text.replace(/[^a-z0-9]/gi, '').length < 6) {
         setShotNote('No writing could be read. Use a sharper screenshot, or type the details.');
         return;
@@ -235,7 +236,7 @@ export function NewInvoice() {
 
       <div class="card">
         <h2>Screenshot</h2>
-        <p class="hint">Choose a screenshot of the job details. The writing is read on this phone and the invoice is filled in.</p>
+        <p class="hint">Choose a screenshot. Only the client, address, job and amount are used. Chat and other writing is ignored.</p>
         <input
           ref={shotRef}
           type="file"

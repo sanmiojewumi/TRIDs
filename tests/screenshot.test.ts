@@ -33,6 +33,21 @@ describe('readInvoiceText', () => {
     expect(read.description).toMatch(/Leak/i);
   });
 
+  it('ignores chat chrome and uses the total, not an earlier price', () => {
+    const text = [
+      'WhatsApp', 'Mum', 'Online', 'Yesterday', '14:22', 'Please invoice this',
+      'Mrs A Khan', '14 High Street', 'Crewe', 'CW1 2BP', 'Boiler service',
+      'Call out £40', 'Total £450', 'Delivered', 'Thanks',
+    ].join('\n');
+    const read = readInvoiceText(text, [], today);
+    expect(read.newClient?.name).toBe('Mrs A Khan');
+    expect(read.amount).toBe(45000);
+    expect(read.sitePostcode).toBe('CW1 2BP');
+    expect(read.siteAddress).toContain('High Street');
+    expect(read.description).toMatch(/Boiler/i);
+    expect(read.workDates).toEqual([]);
+  });
+
   it('ignores the Trids name on the business header', () => {
     const read = readInvoiceText('Trids Gas and Plumbing Ltd\nMrs Khan\nHigh Street\nCW1 4AB\n£120', [], today);
     expect(read.newClient?.name).toBe('Mrs Khan');
