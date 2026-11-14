@@ -47,14 +47,32 @@ public class SavePdfPlugin extends Plugin {
     @PluginMethod
     public void pickFolder(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addCategory(Intent.CATEGORY_DEFAULT);
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
         );
-        if (Build.VERSION.SDK_INT >= 26) intent.putExtra(DocumentsContract.EXTRA_PROMPT, "Select the Trids apps folder");
-        startActivityForResult(call, intent, "onFolderPicked");
+        launchOnScreen(call, intent, "onFolderPicked");
+    }
+
+    /** Plugin calls run off the main thread. Android will not show a folder list started from there. */
+    private void launchOnScreen(PluginCall call, Intent intent, String callback) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("The app is not ready to open folders. Close it, open it again, then try Choose folder.");
+            return;
+        }
+        call.setKeepAlive(true);
+        activity.runOnUiThread(() -> {
+            try {
+                startActivityForResult(call, intent, callback);
+            } catch (Exception err) {
+                call.setKeepAlive(false);
+                call.reject(err.getMessage() == null ? "Could not open the folder list." : err.getMessage());
+            }
+        });
     }
 
     @ActivityCallback
@@ -67,10 +85,18 @@ public class SavePdfPlugin extends Plugin {
             return;
         }
         Uri tree = result.getData().getData();
-        final int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
-        getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+        int flags = result.getData().getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        if (flags == 0) flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+        try {
+            getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+        } catch (Exception ignored) {
+            /* The folder can still be used for this save. */
+        }
         prefs().edit().putString(TREE, tree.toString()).apply();
-        call.resolve(folderStatus());
+        JSObject status = new JSObject();
+        status.put("connected", true);
+        status.put("name", folderName(tree));
+        call.resolve(status);
     }
 
     @PluginMethod
@@ -79,7 +105,7 @@ public class SavePdfPlugin extends Plugin {
         if (bytes == null) return;
         String stored = prefs().getString(TREE, null);
         if (stored == null) {
-            call.reject("Choose the Trids apps folder first.");
+            call.reject("Choose a folder first.");
             return;
         }
         try {
@@ -90,9 +116,9 @@ public class SavePdfPlugin extends Plugin {
             call.resolve(ret);
         } catch (SecurityException e) {
             prefs().edit().remove(TREE).apply();
-            call.reject("The Trids apps folder needs to be chosen again.");
+            call.reject("That folder needs to be chosen again.");
         } catch (Exception e) {
-            call.reject("Could not save into the Trids apps folder");
+            call.reject(e.getMessage() == null ? "Could not save into the chosen folder" : e.getMessage());
         }
     }
 
@@ -107,9 +133,9 @@ public class SavePdfPlugin extends Plugin {
             ret.put("connected", false);
             return ret;
         }
-        String name = "Trids apps";
+        Uri tree = Uri.parse(stored);
+        String name = folderName(tree);
         try {
-            Uri tree = Uri.parse(stored);
             Uri doc = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
             try (Cursor cursor = getContext().getContentResolver().query(
                 doc,
@@ -120,13 +146,29 @@ public class SavePdfPlugin extends Plugin {
             )) {
                 if (cursor != null && cursor.moveToFirst() && cursor.getString(0) != null) name = cursor.getString(0);
             }
-            ret.put("connected", true);
-            ret.put("name", name);
-        } catch (Exception e) {
-            prefs().edit().remove(TREE).apply();
-            ret.put("connected", false);
+        } catch (Exception ignored) {
+            /* Keep the folder even when its display name cannot be read. */
         }
+        ret.put("connected", true);
+        ret.put("name", name);
         return ret;
+    }
+
+    private String folderName(Uri tree) {
+        try {
+            String id = DocumentsContract.getTreeDocumentId(tree);
+            if (id != null) {
+                int colon = id.indexOf(':');
+                String path = colon >= 0 ? id.substring(colon + 1) : id;
+                if (path.isEmpty()) return "Internal storage";
+                int slash = path.lastIndexOf('/');
+                String last = slash >= 0 ? path.substring(slash + 1) : path;
+                if (!last.isEmpty()) return last;
+            }
+        } catch (Exception ignored) {
+            /* Fall through to a plain name. */
+        }
+        return "chosen folder";
     }
 
     private String writeIntoTree(Uri tree, String filename, String mime, byte[] bytes) throws IOException {
@@ -202,7 +244,7 @@ public class SavePdfPlugin extends Plugin {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType(mime);
         intent.putExtra(Intent.EXTRA_TITLE, filename);
-        startActivityForResult(call, intent, "onSaveResult");
+        launchOnScreen(call, intent, "onSaveResult");
     }
 
     @ActivityCallback

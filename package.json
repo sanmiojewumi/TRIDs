@@ -20,7 +20,8 @@
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/share": "^8.0.3",
     "jspdf": "^4.2.1",
-    "preact": "^11.2.0"
+    "preact": "^11.2.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@capacitor/android": "^8.6.0",

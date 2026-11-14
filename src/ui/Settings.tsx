@@ -9,6 +9,7 @@ export function Settings() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
   const [folder, setFolder] = useState<string | null>(null);
+  const [folderMsg, setFolderMsg] = useState('');
   useEffect(() => {
     if (!isNativeApp()) return;
     void connectedFolder().then(setFolder);
@@ -163,26 +164,32 @@ export function Settings() {
 
       {isNativeApp() && (
         <div class="card">
-          <h2>Trids apps folder</h2>
+          <h2>Invoice folder</h2>
           <p class="hint">
             {folder
-              ? `Finished invoices are saved in ${folder}.`
-              : 'Choose the Trids apps folder in Internal storage. Every finished invoice is saved there from then on.'}
+              ? `Finished invoices are saved in ${folder}. Download uses this folder.`
+              : 'Choose a folder on your phone, such as Internal storage / Trids apps. Open it, tap Use this folder, and download will save the PDF there.'}
           </p>
           <button
             class="btn"
+            type="button"
             onClick={() => {
+              setFolderMsg('Opening your phone folders…');
               void connectFolder()
                 .then((name) => {
-                  if (!name) return;
+                  if (!name) {
+                    setFolderMsg('The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.');
+                    return;
+                  }
                   setFolder(name);
-                  setMsg(`Connected to ${name}.`);
+                  setFolderMsg(`Invoices will be saved in ${name}.`);
                 })
-                .catch((err: unknown) => setMsg(err instanceof Error ? err.message : 'Could not open the folder picker.'));
+                .catch((err: unknown) => setFolderMsg(err instanceof Error ? err.message : 'Could not open the folder list.'));
             }}
           >
-            {folder ? 'Change folder' : 'Choose Trids apps folder'}
+            {folder ? 'Change folder' : 'Choose folder'}
           </button>
+          {folderMsg && <p class="hint" role="status">{folderMsg}</p>}
         </div>
       )}
 

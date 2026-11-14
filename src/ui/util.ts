@@ -2,8 +2,10 @@
 export const val = (e: Event) => (e.target as HTMLInputElement).value;
 
 export function isNativeApp(): boolean {
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return !!cap?.isNativePlatform?.();
+  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor;
+  if (cap?.isNativePlatform?.()) return true;
+  const platform = cap?.getPlatform?.();
+  return platform === 'android' || platform === 'ios';
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -44,17 +46,6 @@ async function saveToDownloads(blob: Blob, filename: string): Promise<string> {
   return name ? `Downloads/${name}` : 'Downloads';
 }
 
-/** Opens the system save screen so the user can pick the folder. */
-async function saveNative(blob: Blob, filename: string): Promise<boolean> {
-  const SavePdf = await savePdfPlugin();
-  const { saved } = await SavePdf.save({
-    filename: safeName(filename),
-    data: await blobToBase64(blob),
-    mime: blob.type || 'application/octet-stream',
-  });
-  return saved;
-}
-
 /** On the Android app, hand the file to the system share sheet so it can be saved or sent. */
 async function handOffNative(blob: Blob, filename: string, title: string) {
   const { Directory, Filesystem } = await import('@capacitor/filesystem');
@@ -91,68 +82,89 @@ export interface StoredFile {
   where?: string;
 }
 
-/** The phone folder remembered for finished invoices, or null when none is connected. */
+type DirHandle = {
+  name: string;
+  getFileHandle(name: string, opts: { create: boolean }): Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
+};
+
+let chosenDir: DirHandle | null = null;
+
+function directoryPicker(): ((opts: { mode: 'readwrite' }) => Promise<DirHandle>) | undefined {
+  return (window as Window & { showDirectoryPicker?: (opts: { mode: 'readwrite' }) => Promise<DirHandle> }).showDirectoryPicker;
+}
+
+/** The folder remembered for finished invoices, or null when none is connected. */
 export async function connectedFolder(): Promise<string | null> {
-  if (!isNativeApp()) return null;
+  if (!isNativeApp()) return chosenDir?.name ?? null;
   const SavePdf = await savePdfPlugin();
   const folder = await SavePdf.folder();
-  return folder.connected ? folder.name || 'Trids apps' : null;
+  return folder.connected ? folder.name || 'chosen folder' : null;
 }
 
-/** Ask the phone to remember a folder, such as Internal storage / Trids apps. */
+/** Ask for the folder invoices should be saved in, and remember it. */
 export async function connectFolder(): Promise<string | null> {
-  if (!isNativeApp()) return null;
+  if (!isNativeApp()) {
+    const picker = directoryPicker();
+    if (!picker) return null;
+    try {
+      chosenDir = await picker({ mode: 'readwrite' });
+      return chosenDir.name;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return null;
+      throw e;
+    }
+  }
   const SavePdf = await savePdfPlugin();
   const folder = await SavePdf.pickFolder();
-  return folder.connected ? folder.name || 'Trids apps' : null;
+  return folder.connected ? folder.name || 'chosen folder' : null;
 }
 
-/** Download into the connected phone folder, or the browser's download folder. */
+async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile> {
+  if (!chosenDir) return { saved: false };
+  const file = await chosenDir.getFileHandle(safeName(filename), { create: true });
+  const writable = await file.createWritable();
+  await writable.write(blob);
+  await writable.close();
+  return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
+}
+
+/** Opens the phone's save screen so the PDF is written into a folder the user can open. */
+async function saveWithPhoneDialog(blob: Blob, filename: string): Promise<StoredFile> {
+  const SavePdf = await savePdfPlugin();
+  const { saved } = await SavePdf.save({
+    filename: safeName(filename),
+    data: await blobToBase64(blob),
+    mime: 'application/pdf',
+  });
+  return { saved, where: saved ? `your phone / ${safeName(filename)}` : undefined };
+}
+
+/** Download into the folder chosen for invoices. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
   if (isNativeApp()) {
-    let folder = await connectedFolder();
-    if (!folder) folder = await connectFolder();
-    if (!folder) return { saved: false };
-    const SavePdf = await savePdfPlugin();
-    const saved = await SavePdf.saveToFolder({
-      filename: safeName(filename),
-      data: await blobToBase64(blob),
-      mime: blob.type || 'application/octet-stream',
-    });
-    return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
+    const folder = await connectedFolder();
+    if (folder) {
+      const SavePdf = await savePdfPlugin();
+      try {
+        const saved = await SavePdf.saveToFolder({
+          filename: safeName(filename),
+          data: await blobToBase64(blob),
+          mime: 'application/pdf',
+        });
+        return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
+      } catch {
+        /* The remembered folder could not be written. Ask for a folder on the phone. */
+      }
+    }
+    return saveWithPhoneDialog(blob, filename);
   }
+  if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);
   return { saved: true, where: 'your downloads folder' };
 }
 
-/** Let the user pick the folder. Resolves saved:false when they cancel. */
-export async function saveToChosenFolder(blob: Blob, filename: string): Promise<StoredFile> {
-  if (isNativeApp()) {
-    const saved = await saveNative(blob, filename);
-    return { saved, where: saved ? 'the folder you chose' : undefined };
-  }
-  const picker = (window as Window & { showSaveFilePicker?: (opts: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }> }).showSaveFilePicker;
-  if (!picker) {
-    await downloadBlob(blob, filename);
-    return { saved: true, where: 'your downloads folder' };
-  }
-  try {
-    const handle = await picker({
-      suggestedName: filename,
-      types: [{ description: blob.type === 'application/json' ? 'JSON' : 'PDF', accept: { [blob.type || 'application/pdf']: [blob.type === 'application/json' ? '.json' : '.pdf'] } }],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return { saved: true, where: 'the folder you chose' };
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return { saved: false };
-    throw e;
-  }
-}
-
 export function canChooseFolder(): boolean {
-  return isNativeApp() || typeof (window as Window & { showSaveFilePicker?: unknown }).showSaveFilePicker === 'function';
+  return isNativeApp() || typeof directoryPicker() === 'function';
 }
 
 export function canShareFile(blob: Blob, filename: string): boolean {
