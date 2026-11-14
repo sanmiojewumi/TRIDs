@@ -1,0 +1,28 @@
+{
+  "name": "trids-fin",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Local income and expense book for Trids Gas and Plumbing. No backend.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
