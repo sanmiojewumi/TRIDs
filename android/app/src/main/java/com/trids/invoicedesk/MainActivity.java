@@ -1,7 +1,9 @@
 package com.trids.invoicedesk;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeActivity;
 
@@ -20,6 +22,17 @@ public class MainActivity extends BridgeActivity {
     /** Called from the Choose folder tap, on the same turn as the tap. */
     public void openFolderPicker() {
         startActivity(new Intent(this, FolderPickerActivity.class));
+    }
+
+    /** Opens the Android switch that lets Invoice Desk write Internal storage/TRIDS APPS/Invoice Desk. */
+    public void openAllFilesAccess() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        try {
+            startActivity(intent);
+        } catch (Exception err) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+        }
     }
 
     @Override

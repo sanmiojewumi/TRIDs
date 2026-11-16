@@ -23,6 +23,10 @@ public class TridsWebViewClient extends BridgeWebViewClient {
             activity.openFolderPicker();
             return true;
         }
+        if (url != null && "trids".equals(url.getScheme()) && "allow-files".equals(url.getHost())) {
+            activity.openAllFilesAccess();
+            return true;
+        }
         return super.shouldOverrideUrlLoading(view, request);
     }
 }

@@ -25,7 +25,7 @@ interface SavePdfPlugin {
   folder(): Promise<{ connected: boolean; name?: string; pick?: string; pickId?: string }>;
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
-  toInvoiceDesk(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; where?: string }>;
+  toInvoiceDesk(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; where?: string; needsAccess?: boolean }>;
 }
 
 function savePdfPlugin(): Promise<SavePdfPlugin> {
@@ -158,7 +158,7 @@ async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile>
   return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
 }
 
-/** Finished invoices on the phone go straight into Documents/Trids apps/invoice desk. */
+/** Finished invoices on the phone go straight into Internal storage/TRIDS APPS/Invoice Desk. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
   if (isNativeApp()) {
     const SavePdf = await savePdfPlugin();
@@ -167,7 +167,10 @@ export async function downloadToDevice(blob: Blob, filename: string): Promise<St
       data: await blobToBase64(blob),
       mime: 'application/pdf',
     });
-    return { saved: Boolean(saved.saved), where: saved.where || 'Documents/Trids apps/invoice desk' };
+    if (saved.needsAccess) {
+      throw new Error('Turn on Allow access to manage all files, come back, and tap Download again. The PDF will be saved in Internal storage/TRIDS APPS/Invoice Desk.');
+    }
+    return { saved: Boolean(saved.saved), where: saved.where || 'Internal storage/TRIDS APPS/Invoice Desk' };
   }
   if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);

@@ -160,7 +160,7 @@ export function Settings() {
         <div class="card">
           <h2>Invoice folder</h2>
           <p class="hint">
-            Finished invoices are saved in Documents / Trids apps / invoice desk. Open the Files app, then Documents, then Trids apps, then invoice desk.
+            Finished invoices are saved in Internal storage/TRIDS APPS/Invoice Desk. The first download asks you to allow access to all files. Turn that on, come back, and tap Download again.
           </p>
         </div>
       )}

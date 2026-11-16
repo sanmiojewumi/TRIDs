@@ -21,6 +21,7 @@ export function Preview(props: Props) {
   const [record, setRecord] = useState(props.record);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [needsAccess, setNeedsAccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const data = record?.data ?? props.data;
   const pages = useMemo(() => renderSvgPages(data), [data]);
@@ -65,6 +66,7 @@ export function Preview(props: Props) {
     setBusy(true);
     setError('');
     setNotice('');
+    setNeedsAccess(false);
     try {
       const d = issueIfNeeded();
       if (!d) return;
@@ -73,7 +75,9 @@ export function Preview(props: Props) {
         setNotice(`PDF saved to ${stored.where}.`);
       } else setError('The PDF was not saved on the phone.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the PDF.');
+      const message = e instanceof Error ? e.message : 'Could not save the PDF.';
+      setNeedsAccess(message.includes('Allow access'));
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -127,10 +131,15 @@ export function Preview(props: Props) {
       </div>
       <footer class="overlay-actions">
         {error && <div class="error">{error}</div>}
+        {needsAccess && (
+          <button class="btn grow" type="button" onClick={() => window.location.assign('trids://allow-files')}>
+            Allow file access
+          </button>
+        )}
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
         {isNativeApp() && (
-          <p class="hint center">Download saves the PDF in Documents / Trids apps / invoice desk.</p>
+          <p class="hint center">Download saves the PDF in Internal storage/TRIDS APPS/Invoice Desk. The first time, turn on Allow access to manage all files, then tap Download again.</p>
         )}
         {!isNativeApp() && canChooseFolder() && (
           <p class="hint center">Choose folder, then download, to keep the PDF in a folder on this computer.</p>
