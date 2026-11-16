@@ -24,6 +24,12 @@
 
         </activity>
 
+        <activity
+            android:name=".FolderPickerActivity"
+            android:exported="false"
+            android:launchMode="standard"
+            android:theme="@style/FolderPickerTheme" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -34,6 +40,12 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
     </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+    </queries>
 
     <!-- Permissions -->
 

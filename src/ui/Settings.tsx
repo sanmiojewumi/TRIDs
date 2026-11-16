@@ -12,7 +12,20 @@ export function Settings() {
   const [folderMsg, setFolderMsg] = useState('');
   useEffect(() => {
     if (!isNativeApp()) return;
-    void connectedFolder().then(setFolder);
+    const refresh = () => {
+      void connectedFolder().then((name) => {
+        setFolder(name);
+        setFolderMsg((current) => {
+          if (!current.startsWith('Opening')) return current;
+          return name
+            ? `Invoices will be saved in ${name}.`
+            : 'The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.';
+        });
+      });
+    };
+    refresh();
+    window.addEventListener('trids-resume', refresh);
+    return () => window.removeEventListener('trids-resume', refresh);
   }, []);
   const b = state.business;
   const bank = state.bank;

@@ -41,7 +41,18 @@ export function Preview(props: Props) {
 
   useEffect(() => {
     if (!canChooseFolder()) return;
-    void connectedFolder().then((name) => setFolder(name ?? ''));
+    const refresh = () => {
+      setBusy(false);
+      void connectedFolder().then((name) => {
+        if (name) {
+          setFolder(name);
+          setError('');
+        }
+      });
+    };
+    refresh();
+    window.addEventListener('trids-resume', refresh);
+    return () => window.removeEventListener('trids-resume', refresh);
   }, []);
 
   useEffect(() => {
@@ -146,7 +157,7 @@ export function Preview(props: Props) {
             {draft ? 'Save & download PDF' : 'Download PDF'}
           </button>
           {canChooseFolder() && (
-            <button class="btn grow" disabled={busy} onClick={chooseFolder}>
+            <button class="btn grow" onClick={chooseFolder}>
               {folder ? 'Change folder' : 'Choose folder'}
             </button>
           )}

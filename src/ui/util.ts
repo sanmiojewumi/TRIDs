@@ -22,7 +22,7 @@ function blobToBase64(blob: Blob): Promise<string> {
 interface SavePdfPlugin {
   toDownloads(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string }>;
   save(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean }>;
-  folder(): Promise<{ connected: boolean; name?: string }>;
+  folder(): Promise<{ connected: boolean; name?: string; pick?: string; pickId?: string }>;
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
 }
@@ -115,8 +115,37 @@ export async function connectFolder(): Promise<string | null> {
     }
   }
   const SavePdf = await savePdfPlugin();
-  const folder = await SavePdf.pickFolder();
+  const before = await SavePdf.folder();
+  const outcome = await waitForFolderPick(before.pickId ?? '');
+  if (outcome !== 'ok') return null;
+  const folder = await SavePdf.folder();
   return folder.connected ? folder.name || 'chosen folder' : null;
+}
+
+function waitForFolderPick(previousId: string): Promise<'ok' | 'cancel' | 'timeout'> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = 0;
+    const finish = (outcome: 'ok' | 'cancel' | 'timeout') => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener('trids-resume', check);
+      document.removeEventListener('visibilitychange', check);
+      resolve(outcome);
+    };
+    const check = () => {
+      void savePdfPlugin().then(async (SavePdf) => {
+        const status = await SavePdf.folder();
+        if (!status.pickId || status.pickId === previousId) return;
+        finish(status.pick === 'ok' ? 'ok' : 'cancel');
+      }).catch(() => finish('timeout'));
+    };
+    window.addEventListener('trids-resume', check);
+    document.addEventListener('visibilitychange', check);
+    timer = window.setTimeout(() => finish('timeout'), 120_000);
+    window.location.assign('trids://pick-folder');
+  });
 }
 
 async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile> {
