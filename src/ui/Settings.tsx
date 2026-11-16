@@ -1,32 +1,13 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { formatRef, REF_FORMATS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
-import { backupFileName, connectFolder, connectedFolder, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
+import { backupFileName, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
 
 export function Settings() {
   const state = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
-  const [folder, setFolder] = useState<string | null>(null);
-  const [folderMsg, setFolderMsg] = useState('');
-  useEffect(() => {
-    if (!isNativeApp()) return;
-    const refresh = () => {
-      void connectedFolder().then((name) => {
-        setFolder(name);
-        setFolderMsg((current) => {
-          if (!current.startsWith('Opening')) return current;
-          return name
-            ? `Invoices will be saved in ${name}.`
-            : 'The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.';
-        });
-      });
-    };
-    refresh();
-    window.addEventListener('trids-resume', refresh);
-    return () => window.removeEventListener('trids-resume', refresh);
-  }, []);
   const b = state.business;
   const bank = state.bank;
   const setB = (patch: Partial<Business>) => actions.setBusiness({ ...b, ...patch });
@@ -179,30 +160,8 @@ export function Settings() {
         <div class="card">
           <h2>Invoice folder</h2>
           <p class="hint">
-            {folder
-              ? `Finished invoices are saved in ${folder}. Download uses this folder.`
-              : 'Choose a folder on your phone, such as Internal storage / Trids apps. Open it, tap Use this folder, and download will save the PDF there.'}
+            Finished invoices are saved in Documents / Trids apps / invoice desk. Open the Files app, then Documents, then Trids apps, then invoice desk.
           </p>
-          <button
-            class="btn"
-            type="button"
-            onClick={() => {
-              setFolderMsg('Opening your phone folders…');
-              void connectFolder()
-                .then((name) => {
-                  if (!name) {
-                    setFolderMsg('The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.');
-                    return;
-                  }
-                  setFolder(name);
-                  setFolderMsg(`Invoices will be saved in ${name}.`);
-                })
-                .catch((err: unknown) => setFolderMsg(err instanceof Error ? err.message : 'Could not open the folder list.'));
-            }}
-          >
-            {folder ? 'Change folder' : 'Choose folder'}
-          </button>
-          {folderMsg && <p class="hint" role="status">{folderMsg}</p>}
         </div>
       )}
 

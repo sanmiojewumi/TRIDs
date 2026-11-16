@@ -241,6 +241,101 @@ public class SavePdfPlugin extends Plugin {
         return null;
     }
 
+    private static final String INVOICE_NEST = "Trids apps/invoice desk";
+
+    @PluginMethod
+    public void toInvoiceDesk(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 29 && getPermissionState("storage") != PermissionState.GRANTED) {
+            requestPermissionForAlias("storage", call, "invoiceDeskPerms");
+            return;
+        }
+        writeInvoiceDesk(call);
+    }
+
+    @PermissionCallback
+    private void invoiceDeskPerms(PluginCall call) {
+        if (getPermissionState("storage") == PermissionState.GRANTED) writeInvoiceDesk(call);
+        else call.reject("Allow storage access so invoices can be saved in Trids apps / invoice desk.");
+    }
+
+    private void writeInvoiceDesk(PluginCall call) {
+        byte[] bytes = decode(call);
+        if (bytes == null) return;
+        String filename = filename(call);
+        try {
+            String where = Build.VERSION.SDK_INT >= 29
+                ? insertInvoiceDesk(filename, bytes)
+                : writePublicInvoiceDesk(filename, bytes);
+            JSObject ret = new JSObject();
+            ret.put("saved", true);
+            ret.put("where", where);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not save the PDF in Trids apps / invoice desk");
+        }
+    }
+
+    /** Documents/Trids apps/invoice desk, which the Files app shows under Internal storage. */
+    private String insertInvoiceDesk(String filename, byte[] bytes) throws IOException {
+        String relative = Environment.DIRECTORY_DOCUMENTS + "/" + INVOICE_NEST + "/";
+        ContentResolver resolver = getContext().getContentResolver();
+        Uri collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        String name = uniqueInPath(resolver, collection, relative, filename);
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, relative);
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri uri = resolver.insert(collection, values);
+        if (uri == null) throw new IOException("Could not create the invoice file");
+        try (OutputStream out = resolver.openOutputStream(uri)) {
+            if (out == null) throw new IOException("Could not open the invoice file");
+            out.write(bytes);
+        } catch (IOException e) {
+            resolver.delete(uri, null, null);
+            throw e;
+        }
+        values.clear();
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0);
+        resolver.update(uri, values, null, null);
+        return "Documents/" + INVOICE_NEST + "/" + name;
+    }
+
+    private String uniqueInPath(ContentResolver resolver, Uri collection, String relative, String filename) {
+        String name = filename;
+        String base = filename.replaceFirst("\\.[^.]+$", "");
+        String ext = filename.substring(base.length());
+        for (int n = 2; n < 100; n++) {
+            try (Cursor cursor = resolver.query(
+                collection,
+                new String[] { MediaStore.MediaColumns._ID },
+                MediaStore.MediaColumns.RELATIVE_PATH + "=? AND " + MediaStore.MediaColumns.DISPLAY_NAME + "=?",
+                new String[] { relative, name },
+                null
+            )) {
+                if (cursor == null || !cursor.moveToFirst()) return name;
+            } catch (Exception e) {
+                return name;
+            }
+            name = base + " (" + n + ")" + ext;
+        }
+        return name;
+    }
+
+    private String writePublicInvoiceDesk(String filename, byte[] bytes) throws IOException {
+        File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), INVOICE_NEST);
+        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not open Trids apps / invoice desk");
+        String base = filename.replaceFirst("\\.[^.]+$", "");
+        String ext = filename.substring(base.length());
+        File file = new File(dir, filename);
+        for (int n = 2; file.exists() && n < 100; n++) file = new File(dir, base + " (" + n + ")" + ext);
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes);
+        }
+        MediaScannerConnection.scanFile(getContext(), new String[] { file.getAbsolutePath() }, new String[] { "application/pdf" }, null);
+        return "Documents/" + INVOICE_NEST + "/" + file.getName();
+    }
+
     @PluginMethod
     public void toDownloads(PluginCall call) {
         if (Build.VERSION.SDK_INT < 29 && getPermissionState("storage") != PermissionState.GRANTED) {

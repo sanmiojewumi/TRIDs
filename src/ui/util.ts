@@ -25,6 +25,7 @@ interface SavePdfPlugin {
   folder(): Promise<{ connected: boolean; name?: string; pick?: string; pickId?: string }>;
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
+  toInvoiceDesk(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; where?: string }>;
 }
 
 function savePdfPlugin(): Promise<SavePdfPlugin> {
@@ -157,35 +158,16 @@ async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile>
   return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
 }
 
-/** Opens the phone's save screen so the PDF is written into a folder the user can open. */
-async function saveWithPhoneDialog(blob: Blob, filename: string): Promise<StoredFile> {
-  const SavePdf = await savePdfPlugin();
-  const { saved } = await SavePdf.save({
-    filename: safeName(filename),
-    data: await blobToBase64(blob),
-    mime: 'application/pdf',
-  });
-  return { saved, where: saved ? `your phone / ${safeName(filename)}` : undefined };
-}
-
-/** Download into the folder chosen for invoices. */
+/** Finished invoices on the phone go straight into Documents/Trids apps/invoice desk. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
   if (isNativeApp()) {
-    const folder = await connectedFolder();
-    if (folder) {
-      const SavePdf = await savePdfPlugin();
-      try {
-        const saved = await SavePdf.saveToFolder({
-          filename: safeName(filename),
-          data: await blobToBase64(blob),
-          mime: 'application/pdf',
-        });
-        return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
-      } catch {
-        /* The remembered folder could not be written. Ask for a folder on the phone. */
-      }
-    }
-    return saveWithPhoneDialog(blob, filename);
+    const SavePdf = await savePdfPlugin();
+    const saved = await SavePdf.toInvoiceDesk({
+      filename: safeName(filename),
+      data: await blobToBase64(blob),
+      mime: 'application/pdf',
+    });
+    return { saved: Boolean(saved.saved), where: saved.where || 'Documents/Trids apps/invoice desk' };
   }
   if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);

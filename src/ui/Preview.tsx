@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatMoney } from '../money';
 import { pdfFileName, renderPdf, renderSvgPages } from '../render';
 import type { InvoiceData, InvoiceRecord } from '../types';
-import { canChooseFolder, canShareFile, connectFolder, connectedFolder, downloadToDevice, isNativeApp, shareBlob } from './util';
+import { canChooseFolder, canShareFile, connectFolder, downloadToDevice, isNativeApp, shareBlob } from './util';
 
 interface Props {
   data: InvoiceData;
@@ -25,7 +25,6 @@ export function Preview(props: Props) {
   const data = record?.data ?? props.data;
   const pages = useMemo(() => renderSvgPages(data), [data]);
   const [canShare, setCanShare] = useState(false);
-  const [folder, setFolder] = useState('');
 
   useEffect(() => {
     setRecord(props.record);
@@ -38,22 +37,6 @@ export function Preview(props: Props) {
       setCanShare(false);
     }
   }, [data]);
-
-  useEffect(() => {
-    if (!canChooseFolder()) return;
-    const refresh = () => {
-      setBusy(false);
-      void connectedFolder().then((name) => {
-        if (name) {
-          setFolder(name);
-          setError('');
-        }
-      });
-    };
-    refresh();
-    window.addEventListener('trids-resume', refresh);
-    return () => window.removeEventListener('trids-resume', refresh);
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && props.onClose();
@@ -88,9 +71,7 @@ export function Preview(props: Props) {
       const stored = await downloadToDevice(renderPdf(d), pdfFileName(d));
       if (stored.saved && stored.where) {
         setNotice(`PDF saved to ${stored.where}.`);
-        const name = await connectedFolder();
-        if (name) setFolder(name);
-      } else setError('The PDF was not saved on the phone. Choose a folder, tap Use this folder, then download again.');
+      } else setError('The PDF was not saved on the phone.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the PDF.');
     } finally {
@@ -108,7 +89,6 @@ export function Preview(props: Props) {
         setError('The folder list closed. Open Internal storage, open a folder such as Trids apps, then tap Use this folder.');
         return;
       }
-      setFolder(name);
       setNotice(`Invoices will be saved in ${name}. Tap download to put the PDF there.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not open the folder picker.');
@@ -149,16 +129,19 @@ export function Preview(props: Props) {
         {error && <div class="error">{error}</div>}
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
-        {canChooseFolder() && (
-          <p class="hint center">{folder ? `Download saves the PDF in ${folder} on your phone.` : 'Choose folder opens your phone storage. Open the folder you want, tap Use this folder, then download.'}</p>
+        {isNativeApp() && (
+          <p class="hint center">Download saves the PDF in Documents / Trids apps / invoice desk.</p>
+        )}
+        {!isNativeApp() && canChooseFolder() && (
+          <p class="hint center">Choose folder, then download, to keep the PDF in a folder on this computer.</p>
         )}
         <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
             {draft ? 'Save & download PDF' : 'Download PDF'}
           </button>
-          {canChooseFolder() && (
+          {!isNativeApp() && canChooseFolder() && (
             <button class="btn grow" onClick={chooseFolder}>
-              {folder ? 'Change folder' : 'Choose folder'}
+              Choose folder
             </button>
           )}
           {(isNativeApp() || canShare) && (
