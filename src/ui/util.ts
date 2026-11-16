@@ -22,9 +22,10 @@ function blobToBase64(blob: Blob): Promise<string> {
 interface SavePdfPlugin {
   toDownloads(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string }>;
   save(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean }>;
-  folder(): Promise<{ connected: boolean; name?: string }>;
+  folder(): Promise<{ connected: boolean; name?: string; pick?: string; pickId?: string }>;
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
+  toInvoiceDesk(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; where?: string; needsAccess?: boolean }>;
 }
 
 function savePdfPlugin(): Promise<SavePdfPlugin> {
@@ -115,8 +116,37 @@ export async function connectFolder(): Promise<string | null> {
     }
   }
   const SavePdf = await savePdfPlugin();
-  const folder = await SavePdf.pickFolder();
+  const before = await SavePdf.folder();
+  const outcome = await waitForFolderPick(before.pickId ?? '');
+  if (outcome !== 'ok') return null;
+  const folder = await SavePdf.folder();
   return folder.connected ? folder.name || 'chosen folder' : null;
+}
+
+function waitForFolderPick(previousId: string): Promise<'ok' | 'cancel' | 'timeout'> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = 0;
+    const finish = (outcome: 'ok' | 'cancel' | 'timeout') => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener('trids-resume', check);
+      document.removeEventListener('visibilitychange', check);
+      resolve(outcome);
+    };
+    const check = () => {
+      void savePdfPlugin().then(async (SavePdf) => {
+        const status = await SavePdf.folder();
+        if (!status.pickId || status.pickId === previousId) return;
+        finish(status.pick === 'ok' ? 'ok' : 'cancel');
+      }).catch(() => finish('timeout'));
+    };
+    window.addEventListener('trids-resume', check);
+    document.addEventListener('visibilitychange', check);
+    timer = window.setTimeout(() => finish('timeout'), 120_000);
+    window.location.assign('trids://pick-folder');
+  });
 }
 
 async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile> {
@@ -128,35 +158,19 @@ async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile>
   return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
 }
 
-/** Opens the phone's save screen so the PDF is written into a folder the user can open. */
-async function saveWithPhoneDialog(blob: Blob, filename: string): Promise<StoredFile> {
-  const SavePdf = await savePdfPlugin();
-  const { saved } = await SavePdf.save({
-    filename: safeName(filename),
-    data: await blobToBase64(blob),
-    mime: 'application/pdf',
-  });
-  return { saved, where: saved ? `your phone / ${safeName(filename)}` : undefined };
-}
-
-/** Download into the folder chosen for invoices. */
+/** Finished invoices on the phone go straight into Internal storage/TRIDS APPS/Invoice Desk. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
   if (isNativeApp()) {
-    const folder = await connectedFolder();
-    if (folder) {
-      const SavePdf = await savePdfPlugin();
-      try {
-        const saved = await SavePdf.saveToFolder({
-          filename: safeName(filename),
-          data: await blobToBase64(blob),
-          mime: 'application/pdf',
-        });
-        return { saved: true, where: `${saved.name || folder}/${saved.file || safeName(filename)}` };
-      } catch {
-        /* The remembered folder could not be written. Ask for a folder on the phone. */
-      }
+    const SavePdf = await savePdfPlugin();
+    const saved = await SavePdf.toInvoiceDesk({
+      filename: safeName(filename),
+      data: await blobToBase64(blob),
+      mime: 'application/pdf',
+    });
+    if (saved.needsAccess) {
+      throw new Error('Turn on Allow access to manage all files, come back, and tap Download again. The PDF will be saved in Internal storage/TRIDS APPS/Invoice Desk.');
     }
-    return saveWithPhoneDialog(blob, filename);
+    return { saved: Boolean(saved.saved), where: saved.where || 'Internal storage/TRIDS APPS/Invoice Desk' };
   }
   if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);

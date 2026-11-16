@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSObject;
@@ -38,23 +39,49 @@ public class SavePdfPlugin extends Plugin {
 
     private static final String PREFS = "trids-apps";
     private static final String TREE = "treeUri";
+    private static final String PICK = "pick";
+    private static final String PICK_ID = "pickId";
 
     @PluginMethod
     public void folder(PluginCall call) {
         call.resolve(folderStatus());
     }
 
+    /** Remembers a folder chosen on the phone so invoice downloads can write into it. */
+    public static void rememberTree(android.content.Context context, Uri tree) {
+        try {
+            context.getContentResolver().takePersistableUriPermission(
+                tree,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            );
+        } catch (Exception ignored) {
+            /* The folder can still be used until the app is closed. */
+        }
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString(TREE, tree.toString())
+            .putString(PICK, "ok")
+            .putString(PICK_ID, java.util.UUID.randomUUID().toString())
+            .apply();
+    }
+
+    public static void noteCancelled(android.content.Context context) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString(PICK, "cancel")
+            .putString(PICK_ID, java.util.UUID.randomUUID().toString())
+            .apply();
+    }
+
     @PluginMethod
     public void pickFolder(PluginCall call) {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.addCategory(Intent.CATEGORY_DEFAULT);
-        intent.addFlags(
-            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
-        );
-        launchOnScreen(call, intent, "onFolderPicked");
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("The app is not ready to open folders. Close it, open it again, then try Choose folder.");
+            return;
+        }
+        activity.runOnUiThread(() -> activity.startActivity(new Intent(activity, FolderPickerActivity.class)));
+        call.resolve(folderStatus());
     }
 
     /** Plugin calls run off the main thread. Android will not show a folder list started from there. */
@@ -129,6 +156,8 @@ public class SavePdfPlugin extends Plugin {
     private JSObject folderStatus() {
         JSObject ret = new JSObject();
         String stored = prefs().getString(TREE, null);
+        ret.put("pick", prefs().getString(PICK, ""));
+        ret.put("pickId", prefs().getString(PICK_ID, ""));
         if (stored == null) {
             ret.put("connected", false);
             return ret;
@@ -151,6 +180,8 @@ public class SavePdfPlugin extends Plugin {
         }
         ret.put("connected", true);
         ret.put("name", name);
+        ret.put("pick", prefs().getString(PICK, ""));
+        ret.put("pickId", prefs().getString(PICK_ID, ""));
         return ret;
     }
 
@@ -209,6 +240,71 @@ public class SavePdfPlugin extends Plugin {
             return null;
         }
         return null;
+    }
+
+    private static final String INVOICE_WHERE = "Internal storage/TRIDS APPS/Invoice Desk";
+
+    @PluginMethod
+    public void toInvoiceDesk(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+            askForAllFiles(call);
+            return;
+        }
+        if (Build.VERSION.SDK_INT < 29 && getPermissionState("storage") != PermissionState.GRANTED) {
+            requestPermissionForAlias("storage", call, "invoiceDeskPerms");
+            return;
+        }
+        writeInvoiceDesk(call);
+    }
+
+    @PermissionCallback
+    private void invoiceDeskPerms(PluginCall call) {
+        if (getPermissionState("storage") == PermissionState.GRANTED) writeInvoiceDesk(call);
+        else call.reject("Allow storage access so invoices can be saved in " + INVOICE_WHERE + ".");
+    }
+
+    /** Android only allows this folder after the app can manage files on the phone. */
+    private void askForAllFiles(PluginCall call) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("Close Invoice Desk, open it again, and tap Download.");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            if (activity instanceof MainActivity) ((MainActivity) activity).openAllFilesAccess();
+        });
+        JSObject ret = new JSObject();
+        ret.put("saved", false);
+        ret.put("needsAccess", true);
+        call.resolve(ret);
+    }
+
+    private void writeInvoiceDesk(PluginCall call) {
+        byte[] bytes = decode(call);
+        if (bytes == null) return;
+        try {
+            String where = writeInvoiceFile(filename(call), bytes);
+            JSObject ret = new JSObject();
+            ret.put("saved", true);
+            ret.put("where", where);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Could not save the PDF in " + INVOICE_WHERE);
+        }
+    }
+
+    private String writeInvoiceFile(String filename, byte[] bytes) throws IOException {
+        File dir = new File(Environment.getExternalStorageDirectory(), "TRIDS APPS/Invoice Desk");
+        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not create TRIDS APPS/Invoice Desk");
+        String base = filename.replaceFirst("\\.[^.]+$", "");
+        String ext = filename.substring(base.length());
+        File file = new File(dir, filename);
+        for (int n = 2; file.exists() && n < 100; n++) file = new File(dir, base + " (" + n + ")" + ext);
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes);
+        }
+        MediaScannerConnection.scanFile(getContext(), new String[] { file.getAbsolutePath() }, new String[] { "application/pdf" }, null);
+        return INVOICE_WHERE + "/" + file.getName();
     }
 
     @PluginMethod
