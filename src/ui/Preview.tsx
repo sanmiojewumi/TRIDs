@@ -95,7 +95,7 @@ export function Preview(props: Props) {
 
   const chooseFolder = () => {
     setError('');
-    if (isNativeApp()) {
+    if (isNativeApp() || (window as Window & { TridsPhone?: unknown }).TridsPhone) {
       openSaveFolder();
       return;
     }

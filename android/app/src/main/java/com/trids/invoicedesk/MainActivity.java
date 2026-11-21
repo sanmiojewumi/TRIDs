@@ -48,6 +48,25 @@ public class MainActivity extends BridgeActivity {
         public void pickFolder() {
             runOnUiThread(() -> startActivity(new Intent(MainActivity.this, FolderPickerActivity.class)));
         }
+
+        @JavascriptInterface
+        public String folderPath() {
+            return SavePdfPlugin.chosenLabel(getApplicationContext());
+        }
+
+        @JavascriptInterface
+        public String savePdf(String filename, String base64) {
+            try {
+                byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                return SavePdfPlugin.writeChosen(getApplicationContext(), filename, bytes);
+            } catch (Exception err) {
+                String message = err.getMessage() == null ? "Could not save the PDF." : err.getMessage();
+                if (message.contains("Allow access")) {
+                    runOnUiThread(MainActivity.this::openAllFilesAccess);
+                }
+                return "ERROR:" + message;
+            }
+        }
     }
 
     /** Called from the Choose folder tap, on the same turn as the tap. */

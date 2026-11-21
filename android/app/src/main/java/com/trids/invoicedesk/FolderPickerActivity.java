@@ -44,7 +44,16 @@ public class FolderPickerActivity extends AppCompatActivity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.parseColor("#f4f6f8"));
-        setContentView(root);
+        android.widget.FrameLayout frame = new android.widget.FrameLayout(this);
+        frame.setBackgroundColor(Color.parseColor("#10141c"));
+        android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int screenW = metrics.widthPixels;
+        int screenH = metrics.heightPixels;
+        int boxW = Math.min(screenW, screenH * 9 / 16);
+        int boxH = Math.min(screenH, boxW * 16 / 9);
+        android.widget.FrameLayout.LayoutParams box = new android.widget.FrameLayout.LayoutParams(boxW, boxH, Gravity.CENTER);
+        frame.addView(root, box);
+        setContentView(frame);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {

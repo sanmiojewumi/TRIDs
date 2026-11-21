@@ -37,7 +37,7 @@ export function App() {
   const [path, setPath] = useState(currentPath);
   const [folder, setFolder] = useState('');
   useEffect(() => {
-    if (!isNativeApp()) return;
+    if (!isNativeApp() && !(window as Window & { TridsPhone?: unknown }).TridsPhone) return;
     const refresh = () => {
       void currentSaveFolder().then(setFolder).catch(() => setFolder(''));
     };

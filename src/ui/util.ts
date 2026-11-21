@@ -107,7 +107,7 @@ export async function connectedFolder(): Promise<string | null> {
 
 /** Opens the phone's folder list from the tap, and asks for file access first. */
 export function openSaveFolder(): void {
-  const phone = (window as Window & { TridsPhone?: { pickFolder?: () => void } }).TridsPhone;
+  const phone = phoneBridge();
   if (phone && typeof phone.pickFolder === 'function') {
     phone.pickFolder();
     return;
@@ -171,8 +171,27 @@ async function writeChosenDir(blob: Blob, filename: string): Promise<StoredFile>
   return { saved: true, where: `${chosenDir.name}/${safeName(filename)}` };
 }
 
-/** Finished invoices on the phone go straight into Internal storage/TRIDS APPS/Invoice Desk. */
+interface PhoneBridge {
+  pickFolder?: () => void;
+  folderPath?: () => string;
+  savePdf?: (filename: string, base64: string) => string;
+}
+
+function phoneBridge(): PhoneBridge | undefined {
+  return (window as Window & { TridsPhone?: PhoneBridge }).TridsPhone;
+}
+
+/** Finished invoices on the phone go into the folder chosen in the app. */
 export async function downloadToDevice(blob: Blob, filename: string): Promise<StoredFile> {
+  const phone = phoneBridge();
+  if (phone?.savePdf) {
+    const where = phone.savePdf(safeName(filename), await blobToBase64(blob));
+    if (!where || where.startsWith('ERROR:')) {
+      throw new Error(where?.replace(/^ERROR:/, '') || 'The PDF was not saved in the folder you chose.');
+    }
+    window.dispatchEvent(new Event('trids-resume'));
+    return { saved: true, where };
+  }
   if (isNativeApp()) {
     const SavePdf = await savePdfPlugin();
     const saved = await SavePdf.toInvoiceDesk({
@@ -191,6 +210,8 @@ export async function downloadToDevice(blob: Blob, filename: string): Promise<St
 }
 
 export async function currentSaveFolder(): Promise<string> {
+  const phone = phoneBridge();
+  if (phone?.folderPath) return phone.folderPath() || 'Internal storage/TRIDS APPS/Invoice Desk';
   if (!isNativeApp()) return chosenDir?.name ?? '';
   const SavePdf = await savePdfPlugin();
   const folder = await SavePdf.saveFolder();

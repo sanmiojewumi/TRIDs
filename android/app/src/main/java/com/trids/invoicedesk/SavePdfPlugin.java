@@ -68,12 +68,73 @@ public class SavePdfPlugin extends Plugin {
 
     /** Remembers a real folder on Internal storage. The system folder picker is not used. */
     public static void rememberDirectory(android.content.Context context, java.io.File dir) {
+        java.io.File stored = dir;
+        try {
+            stored = dir.getCanonicalFile();
+        } catch (IOException ignored) {
+            /* Keep the path the folder list was showing. */
+        }
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit()
-            .putString("saveDir", dir.getAbsolutePath())
+            .putString("saveDir", stored.getAbsolutePath())
             .putString(PICK, "ok")
             .putString(PICK_ID, java.util.UUID.randomUUID().toString())
             .commit();
+    }
+
+    /** The folder the next PDF is written into. */
+    public static java.io.File chosenDirectory(android.content.Context context) {
+        String stored = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).getString("saveDir", null);
+        java.io.File dir = stored == null || stored.isEmpty()
+            ? new java.io.File(Environment.getExternalStorageDirectory(), "TRIDS APPS/Invoice Desk")
+            : new java.io.File(stored);
+        try {
+            return dir.getCanonicalFile();
+        } catch (IOException e) {
+            return dir;
+        }
+    }
+
+    public static String chosenLabel(android.content.Context context) {
+        return displayPath(chosenDirectory(context));
+    }
+
+    /** Writes the PDF into the folder chosen in the app and checks the file is really there. */
+    public static String writeChosen(android.content.Context context, String filename, byte[] bytes) throws IOException {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+            throw new IOException("Allow access to manage all files, then tap Save again.");
+        }
+        if (bytes == null || bytes.length == 0) throw new IOException("The PDF was empty.");
+        java.io.File dir = chosenDirectory(context);
+        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not create " + displayPath(dir));
+        if (!dir.isDirectory()) throw new IOException(displayPath(dir) + " is not a folder.");
+        String safe = (filename == null || filename.isEmpty() ? "invoice.pdf" : filename).replaceAll("[\\\\/]", "-");
+        String base = safe.replaceFirst("\\.[^.]+$", "");
+        String ext = safe.substring(base.length());
+        java.io.File file = new java.io.File(dir, safe);
+        for (int n = 2; file.exists() && n < 100; n++) file = new java.io.File(dir, base + " (" + n + ")" + ext);
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes);
+            out.flush();
+            out.getFD().sync();
+        }
+        if (!file.isFile() || file.length() != bytes.length) {
+            throw new IOException("The PDF was not saved in " + displayPath(dir));
+        }
+        MediaScannerConnection.scanFile(context, new String[] { file.getAbsolutePath() }, new String[] { "application/pdf" }, null);
+        return displayPath(dir) + "/" + file.getName();
+    }
+
+    private static String displayPath(java.io.File dir) {
+        try {
+            String root = Environment.getExternalStorageDirectory().getCanonicalPath();
+            String chosen = dir.getCanonicalPath();
+            if (chosen.equals(root)) return "Internal storage";
+            if (chosen.startsWith(root + java.io.File.separator)) return "Internal storage/" + chosen.substring(root.length() + 1);
+        } catch (IOException ignored) {
+            /* Use the raw path below. */
+        }
+        return dir.getAbsolutePath();
     }
 
     public static void noteCancelled(android.content.Context context) {
@@ -261,9 +322,7 @@ public class SavePdfPlugin extends Plugin {
     }
 
     private File saveDirectory() {
-        String stored = prefs().getString(SAVE_DIR, null);
-        if (stored == null || stored.isEmpty()) return new File(externalRoot(), DEFAULT_RELATIVE);
-        return new File(stored);
+        return chosenDirectory(getContext());
     }
 
     private String pretty(File dir) {
@@ -406,28 +465,13 @@ public class SavePdfPlugin extends Plugin {
             ret.put("where", where);
             call.resolve(ret);
         } catch (Exception e) {
-            call.reject("Could not save the PDF in " + pretty(saveDirectory()));
+            String detail = e.getMessage() == null ? "" : " " + e.getMessage();
+            call.reject("Could not save the PDF in " + pretty(saveDirectory()) + "." + detail);
         }
     }
 
     private String writeInvoiceFile(String filename, byte[] bytes) throws IOException {
-        File dir = saveDirectory();
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not create " + pretty(dir));
-        if (!dir.isDirectory()) throw new IOException(pretty(dir) + " is not a folder");
-        String base = filename.replaceFirst("\\.[^.]+$", "");
-        String ext = filename.substring(base.length());
-        File file = new File(dir, filename);
-        for (int n = 2; file.exists() && n < 100; n++) file = new File(dir, base + " (" + n + ")" + ext);
-        try (FileOutputStream out = new FileOutputStream(file)) {
-            out.write(bytes);
-            out.flush();
-            out.getFD().sync();
-        }
-        if (!file.isFile() || file.length() != bytes.length) {
-            throw new IOException("The PDF was not written in " + pretty(dir));
-        }
-        MediaScannerConnection.scanFile(getContext(), new String[] { file.getAbsolutePath() }, new String[] { "application/pdf" }, null);
-        return pretty(dir) + "/" + file.getName();
+        return writeChosen(getContext(), filename, bytes);
     }
 
     @PluginMethod
