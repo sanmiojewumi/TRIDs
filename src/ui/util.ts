@@ -105,6 +105,16 @@ export async function connectedFolder(): Promise<string | null> {
   return folder.connected ? folder.name || 'chosen folder' : null;
 }
 
+/** Opens the phone's folder list from the tap, and asks for file access first. */
+export function openSaveFolder(): void {
+  const phone = (window as Window & { TridsPhone?: { pickFolder?: () => void } }).TridsPhone;
+  if (phone && typeof phone.pickFolder === 'function') {
+    phone.pickFolder();
+    return;
+  }
+  window.location.assign('trids://pick-folder');
+}
+
 /** Ask for the folder invoices should be saved in, and remember it. */
 export async function connectFolder(): Promise<string | null> {
   if (!isNativeApp()) {

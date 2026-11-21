@@ -2,13 +2,23 @@ import { jsPDF } from 'jspdf';
 import { certTitle } from './certs';
 import { PAGE_H, PAGE_W, createCanvas, type Layout, type Measure } from './layout-core';
 import { measureText } from './render';
-import type { CertificateData, CheckResult } from './types';
+import type { CertificateData, CheckResult, FgaReading } from './types';
 
 const ACCENT = '#0f6fc6';
 const GREY = '#667085';
 const INK = '#1f2933';
 const MARGIN = 14;
 const RIGHT = PAGE_W - MARGIN;
+
+function fgaLine(reading: FgaReading | undefined): string {
+  if (!reading) return '';
+  const parts = [
+    reading.co.trim() ? `CO ${reading.co.trim()} ppm` : '',
+    reading.co2.trim() ? `CO2 ${reading.co2.trim()}%` : '',
+    reading.ratio.trim() ? `ratio ${reading.ratio.trim()}` : '',
+  ].filter(Boolean);
+  return parts.join(', ');
+}
 
 function checkLabel(value: CheckResult | 'yes' | 'no' | 'na'): string {
   if (value === 'pass' || value === 'yes') return 'Satisfactory';
@@ -96,6 +106,13 @@ export function layoutCertificate(data: CertificateData, measure: Measure): Layo
   if (data.kind === 'service') {
     line('Gas rate', data.gasRate);
     line('Burner pressure', data.burnerPressure);
+  }
+  const low = fgaLine(data.fgaLow);
+  const high = fgaLine(data.fgaHigh);
+  if (low || high) {
+    heading('Flue gas analysis');
+    if (low) line('Low', low);
+    if (high) line('High', high);
   }
   if (data.kind !== 'landlord') {
     heading(data.kind === 'repair' ? 'Repair' : 'Work carried out');

@@ -29,4 +29,17 @@ describe('certificates', () => {
     expect(title && title.t === 'text' ? title.color : '').toBe('#0f6fc6');
     expect(layout.pages).toBeGreaterThan(0);
   });
+
+  it('prints low and high flue gas readings', () => {
+    const draft = emptyCert('service', '2026-11-21');
+    draft.fgaLow = { co: '10', co2: '8.5', ratio: '0.0012' };
+    draft.fgaHigh = { co: '40', co2: '9.1', ratio: '0.0044' };
+    const layout = layoutCertificate(
+      { ...draft, ref: 'SV-0001', engineerName: 'Trids', gasSafeId: '123456', business: emptyBusiness },
+      measureText,
+    );
+    const texts = layout.ops.filter((op) => op.t === 'text').map((op) => (op.t === 'text' ? op.text : ''));
+    expect(texts.some((text) => text.includes('CO 10 ppm'))).toBe(true);
+    expect(texts.some((text) => text.includes('CO 40 ppm'))).toBe(true);
+  });
 });

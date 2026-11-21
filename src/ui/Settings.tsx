@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { formatRef, REF_FORMATS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
-import { FolderPick } from './FolderPick';
-import { backupFileName, currentSaveFolder, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
+import { backupFileName, currentSaveFolder, downloadBlob, isNativeApp, openSaveFolder, readText, shrinkImage, val } from './util';
 
 export function Settings() {
   const state = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
   const [folder, setFolder] = useState('');
-  const [picking, setPicking] = useState(false);
   useEffect(() => {
     if (!isNativeApp()) return;
-    void currentSaveFolder().then(setFolder);
+    const refresh = () => {
+      void currentSaveFolder().then(setFolder);
+    };
+    refresh();
+    window.addEventListener('trids-resume', refresh);
+    return () => window.removeEventListener('trids-resume', refresh);
   }, []);
   const b = state.business;
   const bank = state.bank;
@@ -171,19 +174,10 @@ export function Settings() {
         <div class="card">
           <h2>Invoice folder</h2>
           <p class="hint">
-            PDFs are saved in {folder || 'Internal storage/TRIDS APPS/Invoice Desk'}. The first time, turn on Allow access to manage all files.
+            PDFs are saved in {folder || 'Internal storage/TRIDS APPS/Invoice Desk'}. Choose folder asks for file access, then opens your folders.
           </p>
-          <button class="btn" type="button" onClick={() => setPicking(true)}>Choose folder</button>
+          <button class="btn" type="button" onClick={() => openSaveFolder()}>Choose folder</button>
         </div>
-      )}
-      {picking && (
-        <FolderPick
-          onClose={() => setPicking(false)}
-          onChosen={(name) => {
-            setFolder(name);
-            setPicking(false);
-          }}
-        />
       )}
 
       <div class="card">

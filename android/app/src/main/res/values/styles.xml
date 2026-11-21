@@ -21,9 +21,9 @@
     </style>
 
     <style name="FolderPickerTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <item name="android:windowBackground">#10141c</item>
-        <item name="android:statusBarColor">#10141c</item>
-        <item name="android:navigationBarColor">#10141c</item>
+        <item name="android:windowBackground">#f4f6f8</item>
+        <item name="android:statusBarColor">#0f6fc6</item>
+        <item name="android:navigationBarColor">#f4f6f8</item>
         <item name="android:windowIsTranslucent">false</item>
     </style>
 </resources>

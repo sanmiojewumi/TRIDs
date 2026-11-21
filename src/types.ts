@@ -128,6 +128,13 @@ export interface Numbering {
 export type CertKind = 'landlord' | 'service' | 'repair';
 export type CheckResult = 'pass' | 'fail' | 'na';
 
+/** One fire rate from the flue gas analyser. */
+export interface FgaReading {
+  co: string;
+  co2: string;
+  ratio: string;
+}
+
 export interface CertAppliance {
   location: string;
   applianceType: string;
@@ -159,6 +166,8 @@ export interface CertificateData {
   pipework: CheckResult;
   emergencyControl: CheckResult;
   coAlarm: 'yes' | 'no' | 'na';
+  fgaLow: FgaReading;
+  fgaHigh: FgaReading;
   gasRate: string;
   burnerPressure: string;
   faultReported: string;

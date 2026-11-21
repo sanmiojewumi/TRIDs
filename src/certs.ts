@@ -1,4 +1,4 @@
-import type { CertAppliance, CertKind, CertificateRecord, CheckResult } from './types';
+import type { CertAppliance, CertKind, CertificateRecord, CheckResult, FgaReading } from './types';
 
 export interface CertDraft {
   kind: CertKind;
@@ -13,6 +13,8 @@ export interface CertDraft {
   pipework: CheckResult;
   emergencyControl: CheckResult;
   coAlarm: 'yes' | 'no' | 'na';
+  fgaLow: FgaReading;
+  fgaHigh: FgaReading;
   gasRate: string;
   burnerPressure: string;
   faultReported: string;
@@ -43,6 +45,10 @@ export function nextCertRef(kind: CertKind, records: CertificateRecord[]): strin
     if (match) highest = Math.max(highest, Number(match[1]));
   }
   return `${prefix}-${String(highest + 1).padStart(4, '0')}`;
+}
+
+export function emptyFga(): FgaReading {
+  return { co: '', co2: '', ratio: '' };
 }
 
 export function emptyAppliance(): CertAppliance {
@@ -77,6 +83,8 @@ export function emptyCert(kind: CertKind, today: string): CertDraft {
     pipework: 'pass',
     emergencyControl: 'pass',
     coAlarm: 'na',
+    fgaLow: emptyFga(),
+    fgaHigh: emptyFga(),
     gasRate: '',
     burnerPressure: '',
     faultReported: '',

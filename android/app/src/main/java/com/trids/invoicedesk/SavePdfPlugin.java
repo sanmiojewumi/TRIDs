@@ -66,6 +66,16 @@ public class SavePdfPlugin extends Plugin {
             .apply();
     }
 
+    /** Remembers a real folder on Internal storage. The system folder picker is not used. */
+    public static void rememberDirectory(android.content.Context context, java.io.File dir) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString("saveDir", dir.getAbsolutePath())
+            .putString(PICK, "ok")
+            .putString(PICK_ID, java.util.UUID.randomUUID().toString())
+            .apply();
+    }
+
     public static void noteCancelled(android.content.Context context) {
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit()

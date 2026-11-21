@@ -1,8 +1,8 @@
 import { useState } from 'preact/hooks';
 import { certFileName, renderCertPdf } from '../cert-layout';
-import { certTitle, emptyAppliance, emptyCert, type CertDraft } from '../certs';
+import { certTitle, emptyAppliance, emptyCert, emptyFga, type CertDraft } from '../certs';
 import { actions, useStore } from '../store';
-import type { CertAppliance, CertKind, CertificateRecord, CheckResult } from '../types';
+import type { CertAppliance, CertKind, CertificateRecord, CheckResult, FgaReading } from '../types';
 import { downloadToDevice, isNativeApp, val } from './util';
 
 const KINDS: CertKind[] = ['landlord', 'service', 'repair'];
@@ -10,6 +10,28 @@ const KINDS: CertKind[] = ['landlord', 'service', 'repair'];
 function todayISO(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function FgaBlock(props: { title: string; value: FgaReading | undefined; onChange: (value: FgaReading) => void }) {
+  const reading = props.value ?? emptyFga();
+  const set = (key: keyof FgaReading, raw: string) => props.onChange({ ...reading, [key]: raw });
+  return (
+    <div>
+      <h2>{props.title}</h2>
+      <label class="field">
+        <span>CO (ppm)</span>
+        <input inputMode="decimal" value={reading.co} onInput={(event) => set('co', val(event))} />
+      </label>
+      <label class="field">
+        <span>CO2 (%)</span>
+        <input inputMode="decimal" value={reading.co2} onInput={(event) => set('co2', val(event))} />
+      </label>
+      <label class="field">
+        <span>Ratio</span>
+        <input inputMode="decimal" value={reading.ratio} onInput={(event) => set('ratio', val(event))} />
+      </label>
+    </div>
+  );
 }
 
 function CheckField(props: { label: string; value: CheckResult; onChange: (value: CheckResult) => void }) {
@@ -223,6 +245,11 @@ function Certificates(props: { saved?: boolean }) {
           <label class="field"><span>Parts fitted</span><textarea rows={2} value={draft.partsFitted} onInput={(event) => set({ partsFitted: val(event) })} /></label>
         </div>
       )}
+      <div class="card">
+        <h2>FGA readings</h2>
+        <FgaBlock title="Low" value={draft.fgaLow} onChange={(fgaLow) => set({ fgaLow })} />
+        <FgaBlock title="High" value={draft.fgaHigh} onChange={(fgaHigh) => set({ fgaHigh })} />
+      </div>
       <div class="card">
         <label class="check">
           <input type="checkbox" checked={draft.warningNotice} onChange={(event) => set({ warningNotice: (event.target as HTMLInputElement).checked })} />
