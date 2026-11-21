@@ -4,7 +4,7 @@ import { formatMoney } from '../money';
 import { pdfFileName, renderPdf } from '../render';
 import { actions, useStore } from '../store';
 import type { InvoiceRecord } from '../types';
-import { seedDraftFromRecord } from './NewInvoice';
+import { beginInvoiceEdit, seedDraftFromRecord } from './NewInvoice';
 import { Preview } from './Preview';
 import { downloadToDevice, val } from './util';
 
@@ -67,21 +67,33 @@ export function Invoices() {
                 <div class="muted small">Issued {formatDate(i.data.issueDate)}</div>
                 <b>{formatMoney(i.data.totals.total)}</b>
               </button>
-              <button
-                class="btn small"
-                type="button"
-                disabled={saving === i.id}
-                onClick={() => {
-                  setSaving(i.id);
-                  setNotice('');
-                  void downloadToDevice(renderPdf(i.data), pdfFileName(i.data))
-                    .then((stored) => setNotice(stored.where ? `${i.ref} saved to ${stored.where}.` : `${i.ref} saved.`))
-                    .catch((err: unknown) => setNotice(err instanceof Error ? err.message : 'Could not save the PDF.'))
-                    .finally(() => setSaving(''));
-                }}
-              >
-                Save to phone
-              </button>
+              <div class="row-actions">
+                <button
+                  class="btn small"
+                  type="button"
+                  disabled={saving === i.id}
+                  onClick={() => {
+                    setSaving(i.id);
+                    setNotice('');
+                    void downloadToDevice(renderPdf(i.data), pdfFileName(i.data))
+                      .then((stored) => setNotice(stored.where ? `${i.ref} saved to ${stored.where}.` : `${i.ref} saved.`))
+                      .catch((err: unknown) => setNotice(err instanceof Error ? err.message : 'Could not save the PDF.'))
+                      .finally(() => setSaving(''));
+                  }}
+                >
+                  Save to phone
+                </button>
+                <button class="btn small" type="button" onClick={() => beginInvoiceEdit(i)}>Edit</button>
+                <button
+                  class="btn small danger"
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Delete ${i.ref}? This removes it from the app.`)) actions.deleteInvoice(i.id);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </li>
         ))}
@@ -95,6 +107,7 @@ export function Invoices() {
             seedDraftFromRecord(r);
             location.hash = '#/new';
           }}
+          onEdit={(r) => beginInvoiceEdit(r)}
           onTogglePaid={(r) => actions.setInvoiceStatus(r.id, r.status === 'paid' ? 'unpaid' : 'paid')}
           onDelete={(r) => {
             actions.deleteInvoice(r.id);

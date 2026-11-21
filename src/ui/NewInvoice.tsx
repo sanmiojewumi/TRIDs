@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { formatWorkDates, todayISO } from '../dates';
-import { buildInvoiceData, emptyDraft, validateDraft } from '../invoice';
+import { buildInvoiceData, draftFromInvoice, emptyDraft, standInClient, validateDraft } from '../invoice';
 import { formatMoney, lineTotal } from '../money';
 import { DEFAULT_DESCRIPTION, newClient } from '../seed';
 import { parsePrompt, type ParsedPrompt } from '../prompt';
@@ -13,6 +13,13 @@ import { Preview } from './Preview';
 import { val } from './util';
 
 const DRAFT_KEY = 'invoice-desk.draft';
+const EDIT_KEY = 'invoice-desk.editing';
+
+export function beginInvoiceEdit(record: InvoiceRecord) {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(draftFromInvoice(record)));
+  localStorage.setItem(EDIT_KEY, record.id);
+  location.hash = '#/new';
+}
 
 function loadDraft(): Draft {
   try {
@@ -54,6 +61,7 @@ export function NewInvoice() {
   const [caption, setCaption] = useState('');
   const [shotNote, setShotNote] = useState('');
   const [pendingPreview, setPendingPreview] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(() => localStorage.getItem(EDIT_KEY));
 
   const setDraft = (patch: Partial<Draft>) =>
     setDraftRaw((d) => {
@@ -62,7 +70,8 @@ export function NewInvoice() {
       return next;
     });
 
-  const client = state.clients.find((c) => c.id === draft.clientId);
+  const editing = state.invoices.find((item) => item.id === editingId);
+  const client = state.clients.find((c) => c.id === draft.clientId) ?? (editing ? standInClient(editing) : undefined);
 
   useEffect(() => {
     if (draft.clientId && !client) setDraft({ clientId: '' });
@@ -128,9 +137,10 @@ export function NewInvoice() {
 
   const preview = useMemo(() => {
     if (!client) return undefined;
-    const { ref } = nextRef(state.numbering, client.postcode, state.invoices);
-    return buildInvoiceData(draft, client, templateFor(state, client), state.business, state.bank, ref);
-  }, [draft, client, state]);
+    const ref = editing?.ref ?? nextRef(state.numbering, client.postcode, state.invoices).ref;
+    const template = state.templates.find((item) => item.id === client.templateId) ?? editing?.data.template ?? templateFor(state, client);
+    return buildInvoiceData(draft, client, template, state.business, state.bank, ref);
+  }, [draft, client, state, editing]);
 
   useEffect(() => {
     if (!pendingPreview || !client) return;
@@ -181,6 +191,8 @@ export function NewInvoice() {
 
   const reset = () => {
     localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(EDIT_KEY);
+    setEditingId(null);
     const c = state.clients.find((x) => x.id === draft.clientId);
     setDraftRaw(emptyDraft(c));
     setPrompt('');
@@ -202,7 +214,8 @@ export function NewInvoice() {
 
   return (
     <section class="page-wrap">
-      <h1>New invoice</h1>
+      <h1>{editing ? `Edit ${editing.ref}` : 'New invoice'}</h1>
+      {editing && <p class="notice">You are editing {editing.ref}. Saving keeps this number.</p>}
 
       {businessMissing && (
         <div class="notice">
@@ -258,7 +271,7 @@ export function NewInvoice() {
         </label>
         {client && (
           <p class="hint">
-            Template: {templateFor(state, client).name} | Next ref: {nextRef(state.numbering, client.postcode, state.invoices).ref} | Terms: {client.paymentTermsDays === 0 ? 'due on receipt' : `${client.paymentTermsDays} days`}
+            Template: {templateFor(state, client).name} | {editing ? `Ref: ${editing.ref}` : `Next ref: ${nextRef(state.numbering, client.postcode, state.invoices).ref}`} | Terms: {client.paymentTermsDays === 0 ? 'due on receipt' : `${client.paymentTermsDays} days`}
             {state.business.vatRegistered && client.vatRate > 0 && ` | VAT ${client.vatRate}%`}
           </p>
         )}
@@ -444,7 +457,7 @@ export function NewInvoice() {
           Clear
         </button>
         <button class="btn primary grow" onClick={openPreview}>
-          Preview invoice
+          {editing ? `Update ${editing.ref}` : 'Preview invoice'}
         </button>
       </div>
 
@@ -453,8 +466,12 @@ export function NewInvoice() {
           data={preview}
           record={saved}
           onIssue={() => {
-            const rec = actions.issueInvoice(draft);
+            const rec = editingId ? actions.updateInvoice(editingId, draft) : actions.issueInvoice(draft);
             setSaved(rec);
+            if (editingId) {
+              localStorage.removeItem(EDIT_KEY);
+              setEditingId(null);
+            }
             return rec;
           }}
           onClose={() => {

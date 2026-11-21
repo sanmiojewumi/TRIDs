@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { buildInvoiceData } from './invoice';
+import { buildInvoiceData, standInClient } from './invoice';
 import { nextRef } from './refs';
 import { builtInTemplates, emptyBusiness, freshState, sampleClients } from './seed';
 import { nextCertRef, type CertDraft } from './certs';
@@ -143,6 +143,17 @@ export const actions = {
   deleteInvoice(id: string) {
     commit({ ...state, invoices: state.invoices.filter((i) => i.id !== id) });
   },
+  /** Rewrites a saved invoice and keeps its reference number. */
+  updateInvoice(id: string, draft: Draft): InvoiceRecord {
+    const current = state.invoices.find((item) => item.id === id);
+    if (!current) throw new Error('Invoice not found');
+    const client = state.clients.find((item) => item.id === draft.clientId) ?? standInClient(current);
+    const template = state.templates.find((item) => item.id === client.templateId) ?? current.data.template;
+    const data = buildInvoiceData(draft, client, template, state.business, state.bank, current.ref);
+    const record: InvoiceRecord = { ...current, clientId: client.id, data };
+    commit({ ...state, invoices: state.invoices.map((item) => (item.id === id ? record : item)) });
+    return record;
+  },
   saveCertificate(draft: CertDraft): CertificateRecord {
     const record: CertificateRecord = {
       id: crypto.randomUUID(),
@@ -160,6 +171,24 @@ export const actions = {
   },
   deleteCertificate(id: string) {
     commit({ ...state, certificates: state.certificates.filter((item) => item.id !== id) });
+  },
+  /** Rewrites a saved certificate and keeps its reference number. */
+  updateCertificate(id: string, draft: CertDraft): CertificateRecord {
+    const current = state.certificates.find((item) => item.id === id);
+    if (!current) throw new Error('Certificate not found');
+    const record: CertificateRecord = {
+      ...current,
+      data: {
+        ...draft,
+        kind: current.data.kind,
+        ref: current.data.ref,
+        engineerName: draft.engineerName.trim() || state.business.name,
+        gasSafeId: state.business.gasSafeId,
+        business: state.business,
+      },
+    };
+    commit({ ...state, certificates: state.certificates.map((item) => (item.id === id ? record : item)) });
+    return record;
   },
   exportJSON(): string {
     return JSON.stringify(state, null, 2);

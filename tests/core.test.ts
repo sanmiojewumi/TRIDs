@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, formatWorkDates } from '../src/dates';
-import { buildInvoiceData, validateDraft, emptyDraft } from '../src/invoice';
+import { buildInvoiceData, draftFromInvoice, standInClient, validateDraft, emptyDraft } from '../src/invoice';
 import { buildLayout } from '../src/layout';
 import { computeTotals, formatMoney, parsePence } from '../src/money';
 import { formatRef, nextRef } from '../src/refs';
@@ -71,6 +71,16 @@ describe('invoice + layout', () => {
     expect(d.dueDate).toBe('2026-11-22');
     expect(d.sitePostcode).toBe('SW1A 1AA');
     expect(d.totals.total).toBe(36000);
+  });
+
+  it('reopens a saved invoice with the same site and amount', () => {
+    const data = buildInvoiceData(draft, client, builtInTemplates[0], { ...emptyBusiness, name: 'Me', phone: '07000000000' }, { accountName: '', sortCode: '', accountNumber: '' }, 'NE312EX 00015');
+    const record: InvoiceRecord = { id: 'inv', clientId: client.id, ref: data.ref, createdAt: '2026-11-21', status: 'unpaid', data };
+    const again = draftFromInvoice(record);
+    expect(again.sitePostcode).toBe('SW1A 1AA');
+    expect(again.issueDate).toBe('2026-11-08');
+    expect(again.items[0].rate).toBe(45000);
+    expect(standInClient(record).paymentTermsDays).toBe(14);
   });
 
   it.each(builtInTemplates)('lays out the $name template on one page', (tpl) => {

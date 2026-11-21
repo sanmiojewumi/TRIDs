@@ -13,6 +13,7 @@ interface Props {
   onClose: () => void;
   onNew?: () => void;
   onDuplicate?: (record: InvoiceRecord) => void;
+  onEdit?: (record: InvoiceRecord) => void;
   onTogglePaid?: (record: InvoiceRecord) => void;
   onDelete?: (record: InvoiceRecord) => void;
 }
@@ -173,6 +174,11 @@ export function Preview(props: Props) {
             {props.onNew && (
               <button class="btn" onClick={props.onNew}>
                 New invoice
+              </button>
+            )}
+            {props.onEdit && (
+              <button class="btn" onClick={() => props.onEdit!(record)}>
+                Edit
               </button>
             )}
             {props.onDuplicate && (

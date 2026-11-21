@@ -1,11 +1,25 @@
 import { useState } from 'preact/hooks';
 import { certFileName, renderCertPdf } from '../cert-layout';
-import { certTitle, emptyAppliance, emptyCert, emptyFga, type CertDraft } from '../certs';
-import { actions, useStore } from '../store';
+import { certTitle, draftFromCertificate, emptyAppliance, emptyCert, emptyFga, type CertDraft } from '../certs';
+import { actions, getState, useStore } from '../store';
 import type { CertAppliance, CertKind, CertificateRecord, CheckResult, FgaReading } from '../types';
 import { downloadToDevice, isNativeApp, val } from './util';
 
 const KINDS: CertKind[] = ['landlord', 'service', 'repair'];
+const CERT_EDIT = 'invoice-desk.cert-edit';
+
+export function beginCertificateEdit(record: CertificateRecord) {
+  sessionStorage.setItem(CERT_EDIT, record.id);
+  location.hash = '#/certs';
+}
+
+function readCertEdit(): { id: string; draft: CertDraft } | null {
+  const id = sessionStorage.getItem(CERT_EDIT);
+  if (!id) return null;
+  sessionStorage.removeItem(CERT_EDIT);
+  const record = getState().certificates.find((item) => item.id === id);
+  return record ? { id: record.id, draft: draftFromCertificate(record.data) } : null;
+}
 
 function todayISO(): string {
   const now = new Date();
@@ -57,8 +71,13 @@ export function SavedCertificates() {
 
 function Certificates(props: { saved?: boolean }) {
   const state = useStore();
-  const [kind, setKind] = useState<CertKind>('landlord');
-  const [draft, setDraft] = useState<CertDraft>(() => emptyCert('landlord', todayISO()));
+  const [started] = useState(() => {
+    if (props.saved) return null;
+    return readCertEdit();
+  });
+  const [editingId, setEditingId] = useState<string | null>(started?.id ?? null);
+  const [kind, setKind] = useState<CertKind>(started?.draft.kind ?? 'landlord');
+  const [draft, setDraft] = useState<CertDraft>(started?.draft ?? emptyCert('landlord', todayISO()));
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -67,6 +86,7 @@ function Certificates(props: { saved?: boolean }) {
   const set = (patch: Partial<CertDraft>) => setDraft((current) => ({ ...current, ...patch }));
   const chooseKind = (next: CertKind) => {
     setKind(next);
+    setEditingId(null);
     setDraft(emptyCert(next, draft.date || todayISO()));
     setNotice('');
     setError('');
@@ -81,7 +101,8 @@ function Certificates(props: { saved?: boolean }) {
     setError('');
     setNotice('');
     try {
-      const record = actions.saveCertificate(draft);
+      const record = editingId ? actions.updateCertificate(editingId, draft) : actions.saveCertificate(draft);
+      if (editingId) setEditingId(null);
       const blob = renderCertPdf(record.data);
       const stored = await downloadToDevice(blob, certFileName(record.data));
       setNotice(stored.where ? `Saved in the app and on the phone: ${stored.where}.` : 'Saved in the app.');
@@ -123,7 +144,19 @@ function Certificates(props: { saved?: boolean }) {
                   <div class="muted">{certTitle(record.data.kind)}</div>
                   <div class="muted small">{record.data.customerName} · {record.data.date}</div>
                 </button>
-                <button class="btn small" type="button" disabled={busy} onClick={() => void saveExisting(record)}>Save to phone</button>
+                <div class="row-actions">
+                  <button class="btn small" type="button" disabled={busy} onClick={() => void saveExisting(record)}>Save to phone</button>
+                  <button class="btn small" type="button" onClick={() => beginCertificateEdit(record)}>Edit</button>
+                  <button
+                    class="btn small danger"
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`Delete ${record.data.ref}? This removes it from the app.`)) actions.deleteCertificate(record.id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </li>
           ))}
@@ -138,7 +171,8 @@ function Certificates(props: { saved?: boolean }) {
               <p>{certTitle(open.data.kind)}</p>
               <p class="hint">{open.data.customerName}<br />{open.data.customerAddress}<br />{open.data.postcode}</p>
               <button class="btn primary" type="button" disabled={busy} onClick={() => void saveExisting(open)}>Save PDF to phone</button>
-              <button class="btn danger" type="button" onClick={() => { actions.deleteCertificate(open.id); setOpen(null); }}>Delete</button>
+              <button class="btn" type="button" onClick={() => beginCertificateEdit(open)}>Edit</button>
+              <button class="btn danger" type="button" onClick={() => { if (confirm(`Delete ${open.data.ref}? This removes it from the app.`)) { actions.deleteCertificate(open.id); setOpen(null); } }}>Delete</button>
             </div>
           </div>
         )}
@@ -152,7 +186,8 @@ function Certificates(props: { saved?: boolean }) {
 
   return (
     <section class="page-wrap">
-      <h1>New certificate</h1>
+      <h1>{editingId ? `Edit ${getState().certificates.find((item) => item.id === editingId)?.data.ref ?? 'certificate'}` : 'New certificate'}</h1>
+      {editingId && <p class="notice">You are editing this certificate. Saving keeps the same number.</p>}
       <div class="choice-row">
         {KINDS.map((item) => (
           <button key={item} type="button" class={kind === item ? 'btn primary' : 'btn'} onClick={() => chooseKind(item)}>
@@ -259,8 +294,13 @@ function Certificates(props: { saved?: boolean }) {
         <label class="field"><span>Engineer name</span><input value={draft.engineerName} placeholder={state.business.name} onInput={(event) => set({ engineerName: val(event) })} /></label>
       </div>
       <button class="btn primary" type="button" disabled={busy} onClick={() => void saveAndDownload()}>
-        {isNativeApp() ? 'Save certificate and PDF' : 'Save certificate'}
+        {editingId ? 'Save changes' : isNativeApp() ? 'Save certificate and PDF' : 'Save certificate'}
       </button>
+      {editingId && (
+        <button class="btn" type="button" onClick={() => { setEditingId(null); setDraft(emptyCert(kind, todayISO())); }}>
+          Cancel edit
+        </button>
+      )}
     </section>
   );
 }

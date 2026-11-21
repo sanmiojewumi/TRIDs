@@ -1,4 +1,4 @@
-import type { CertAppliance, CertKind, CertificateRecord, CheckResult, FgaReading } from './types';
+import type { CertAppliance, CertKind, CertificateData, CertificateRecord, CheckResult, FgaReading } from './types';
 
 export interface CertDraft {
   kind: CertKind;
@@ -66,6 +66,33 @@ export function emptyAppliance(): CertAppliance {
     combustion: '',
     safe: 'yes',
     defects: '',
+  };
+}
+
+export function draftFromCertificate(data: CertificateData): CertDraft {
+  return {
+    kind: data.kind,
+    date: data.date,
+    nextDue: data.nextDue,
+    customerName: data.customerName,
+    customerAddress: data.customerAddress,
+    postcode: data.postcode,
+    tenantName: data.tenantName,
+    appliances: data.appliances.map((item) => ({ ...item })),
+    tightness: data.tightness,
+    pipework: data.pipework,
+    emergencyControl: data.emergencyControl,
+    coAlarm: data.coAlarm,
+    fgaLow: { ...data.fgaLow },
+    fgaHigh: { ...data.fgaHigh },
+    gasRate: data.gasRate,
+    burnerPressure: data.burnerPressure,
+    faultReported: data.faultReported,
+    workDone: data.workDone,
+    partsFitted: data.partsFitted,
+    warningNotice: data.warningNotice,
+    notes: data.notes,
+    engineerName: data.engineerName,
   };
 }
 

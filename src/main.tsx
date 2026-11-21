@@ -4,16 +4,12 @@ import { App } from './ui/App';
 
 render(<App />, document.getElementById('app')!);
 
-/** Locks the app to 9:16 from the full screen, so the keyboard cannot shrink it. */
+/** Keeps the page the full size between the status bar and the system buttons. */
 function lockFrame() {
   const app = document.getElementById('app');
   if (!app || app.dataset.locked === '1') return;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const frameW = Math.min(w, (h * 9) / 16);
-  const frameH = Math.min(h, (w * 16) / 9);
-  app.style.width = `${frameW}px`;
-  app.style.height = `${frameH}px`;
+  app.style.width = `${window.innerWidth}px`;
+  app.style.height = `${window.innerHeight}px`;
   app.dataset.locked = '1';
 }
 
