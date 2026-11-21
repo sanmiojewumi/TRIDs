@@ -4,10 +4,44 @@ import { App } from './ui/App';
 
 render(<App />, document.getElementById('app')!);
 
+/** Locks the app to 9:16 from the full screen, so the keyboard cannot shrink it. */
+function lockFrame() {
+  const app = document.getElementById('app');
+  if (!app || app.dataset.locked === '1') return;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const frameW = Math.min(w, (h * 9) / 16);
+  const frameH = Math.min(h, (w * 16) / 9);
+  app.style.width = `${frameW}px`;
+  app.style.height = `${frameH}px`;
+  app.dataset.locked = '1';
+}
+
+function keepFieldVisible() {
+  const viewport = window.visualViewport;
+  const app = document.getElementById('app');
+  if (!viewport || !app) return;
+  const rect = app.getBoundingClientRect();
+  const visibleBottom = viewport.offsetTop + viewport.height;
+  const cover = Math.max(0, rect.bottom - visibleBottom);
+  document.documentElement.style.setProperty('--keyboard-cover', `${cover}px`);
+  document.documentElement.classList.toggle('keyboard', cover > 40);
+  const active = document.activeElement;
+  if (cover <= 40 || !(active instanceof HTMLElement) || !active.matches('input, textarea, select')) return;
+  const shell = active.closest('.shell');
+  if (!(shell instanceof HTMLElement)) return;
+  const field = active.getBoundingClientRect();
+  const limit = visibleBottom - 12;
+  if (field.bottom > limit) shell.scrollTop += field.bottom - limit + 16;
+}
+
+lockFrame();
+window.visualViewport?.addEventListener('resize', keepFieldVisible);
+window.visualViewport?.addEventListener('scroll', keepFieldVisible);
 document.addEventListener('focusin', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement) || !target.matches('input, textarea, select')) return;
-  window.setTimeout(() => target.scrollIntoView({ block: 'center', inline: 'nearest' }), 250);
+  window.setTimeout(keepFieldVisible, 50);
 });
 
 if ('storage' in navigator && navigator.storage.persist) void navigator.storage.persist();
