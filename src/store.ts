@@ -2,7 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { buildInvoiceData } from './invoice';
 import { nextRef } from './refs';
 import { builtInTemplates, emptyBusiness, freshState, sampleClients } from './seed';
-import type { AppState, Client, Draft, InvoiceRecord, Numbering, Template } from './types';
+import { nextCertRef, type CertDraft } from './certs';
+import type { AppState, CertificateRecord, Client, Draft, InvoiceRecord, Numbering, Template } from './types';
 
 const KEY = 'invoice-desk.v1';
 
@@ -27,6 +28,7 @@ function migrate(raw: unknown): AppState {
     templates,
     clients: Array.isArray(r.clients) ? r.clients : [],
     invoices: Array.isArray(r.invoices) ? r.invoices : [],
+    certificates: Array.isArray(r.certificates) ? r.certificates : [],
   };
 }
 
@@ -140,6 +142,24 @@ export const actions = {
   },
   deleteInvoice(id: string) {
     commit({ ...state, invoices: state.invoices.filter((i) => i.id !== id) });
+  },
+  saveCertificate(draft: CertDraft): CertificateRecord {
+    const record: CertificateRecord = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      data: {
+        ...draft,
+        ref: nextCertRef(draft.kind, state.certificates),
+        engineerName: draft.engineerName.trim() || state.business.name,
+        gasSafeId: state.business.gasSafeId,
+        business: state.business,
+      },
+    };
+    commit({ ...state, certificates: [record, ...state.certificates] });
+    return record;
+  },
+  deleteCertificate(id: string) {
+    commit({ ...state, certificates: state.certificates.filter((item) => item.id !== id) });
   },
   exportJSON(): string {
     return JSON.stringify(state, null, 2);

@@ -139,14 +139,14 @@ export function Preview(props: Props) {
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
         {isNativeApp() && (
-          <p class="hint center">Download saves the PDF in Internal storage/TRIDS APPS/Invoice Desk. The first time, turn on Allow access to manage all files, then tap Download again.</p>
+          <p class="hint center">This saves the PDF into the folder chosen in Settings. The first time, turn on Allow access to manage all files.</p>
         )}
         {!isNativeApp() && canChooseFolder() && (
           <p class="hint center">Choose folder, then download, to keep the PDF in a folder on this computer.</p>
         )}
         <div class="row wrap pdf-actions">
           <button class="btn primary grow" disabled={busy} onClick={download}>
-            {draft ? 'Save & download PDF' : 'Download PDF'}
+            {draft ? 'Save & download PDF' : 'Save PDF to phone'}
           </button>
           {!isNativeApp() && canChooseFolder() && (
             <button class="btn grow" onClick={chooseFolder}>

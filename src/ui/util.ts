@@ -26,6 +26,9 @@ interface SavePdfPlugin {
   pickFolder(): Promise<{ connected: boolean; name?: string }>;
   saveToFolder(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; name?: string; file?: string }>;
   toInvoiceDesk(options: { filename: string; data: string; mime?: string }): Promise<{ saved: boolean; where?: string; needsAccess?: boolean }>;
+  saveFolder(): Promise<{ connected: boolean; name?: string; path?: string; needsAccess?: boolean }>;
+  setSaveFolder(options: { path: string }): Promise<{ connected: boolean; name?: string; path?: string; needsAccess?: boolean }>;
+  listFolders(options: { path?: string }): Promise<{ path: string; label: string; parent: string; folders: { name: string; path: string }[]; needsAccess?: boolean }>;
 }
 
 function savePdfPlugin(): Promise<SavePdfPlugin> {
@@ -168,13 +171,40 @@ export async function downloadToDevice(blob: Blob, filename: string): Promise<St
       mime: 'application/pdf',
     });
     if (saved.needsAccess) {
-      throw new Error('Turn on Allow access to manage all files, come back, and tap Download again. The PDF will be saved in Internal storage/TRIDS APPS/Invoice Desk.');
+      throw new Error('Turn on Allow access to manage all files, come back, and tap Download again.');
     }
-    return { saved: Boolean(saved.saved), where: saved.where || 'Internal storage/TRIDS APPS/Invoice Desk' };
+    return { saved: Boolean(saved.saved), where: saved.where || 'the folder you chose' };
   }
   if (chosenDir) return writeChosenDir(blob, filename);
   await downloadBlob(blob, filename);
   return { saved: true, where: 'your downloads folder' };
+}
+
+export async function currentSaveFolder(): Promise<string> {
+  if (!isNativeApp()) return chosenDir?.name ?? '';
+  const SavePdf = await savePdfPlugin();
+  const folder = await SavePdf.saveFolder();
+  return folder.name || 'Internal storage/TRIDS APPS/Invoice Desk';
+}
+
+export interface PhoneFolderList {
+  path: string;
+  label: string;
+  parent: string;
+  folders: { name: string; path: string }[];
+  needsAccess?: boolean;
+}
+
+export async function listPhoneFolders(path = ''): Promise<PhoneFolderList> {
+  const SavePdf = await savePdfPlugin();
+  return SavePdf.listFolders({ path });
+}
+
+export async function chooseSaveFolder(path: string): Promise<string> {
+  const SavePdf = await savePdfPlugin();
+  const saved = await SavePdf.setSaveFolder({ path });
+  if (saved.needsAccess) throw new Error('Turn on Allow access to manage all files, then choose the folder again.');
+  return saved.name || path;
 }
 
 export function canChooseFolder(): boolean {

@@ -1,13 +1,20 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { formatRef, REF_FORMATS } from '../refs';
 import { actions, getSaveError, useStore } from '../store';
 import type { Business } from '../types';
-import { backupFileName, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
+import { FolderPick } from './FolderPick';
+import { backupFileName, currentSaveFolder, downloadBlob, isNativeApp, readText, shrinkImage, val } from './util';
 
 export function Settings() {
   const state = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
+  const [folder, setFolder] = useState('');
+  const [picking, setPicking] = useState(false);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    void currentSaveFolder().then(setFolder);
+  }, []);
   const b = state.business;
   const bank = state.bank;
   const setB = (patch: Partial<Business>) => actions.setBusiness({ ...b, ...patch });
@@ -48,6 +55,10 @@ export function Settings() {
           <label class="field">
             <span>Company number</span>
             <input value={b.companyNumber} onInput={(e) => setB({ companyNumber: val(e) })} />
+          </label>
+          <label class="field">
+            <span>Gas Safe ID</span>
+            <input value={b.gasSafeId} onInput={(e) => setB({ gasSafeId: val(e) })} />
           </label>
           <label class="field">
             <span>VAT number</span>
@@ -160,9 +171,19 @@ export function Settings() {
         <div class="card">
           <h2>Invoice folder</h2>
           <p class="hint">
-            Finished invoices are saved in Internal storage/TRIDS APPS/Invoice Desk. The first download asks you to allow access to all files. Turn that on, come back, and tap Download again.
+            PDFs are saved in {folder || 'Internal storage/TRIDS APPS/Invoice Desk'}. The first time, turn on Allow access to manage all files.
           </p>
+          <button class="btn" type="button" onClick={() => setPicking(true)}>Choose folder</button>
         </div>
+      )}
+      {picking && (
+        <FolderPick
+          onClose={() => setPicking(false)}
+          onChosen={(name) => {
+            setFolder(name);
+            setPicking(false);
+          }}
+        />
       )}
 
       <div class="card">
