@@ -16,6 +16,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTop"
+            android:screenOrientation="portrait"
             android:exported="true">
 
             <intent-filter>
@@ -28,6 +29,7 @@
         <activity
             android:name=".FolderPickerActivity"
             android:exported="false"
+            android:screenOrientation="portrait"
             android:launchMode="standard"
             android:theme="@style/FolderPickerTheme" />
 

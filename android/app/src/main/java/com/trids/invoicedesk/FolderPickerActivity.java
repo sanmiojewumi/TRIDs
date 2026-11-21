@@ -131,8 +131,9 @@ public class FolderPickerActivity extends AppCompatActivity {
         if (kids != null) {
             Arrays.sort(kids, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
             for (File kid : kids) {
-                if (!kid.isDirectory() || kid.getName().startsWith(".")) continue;
-                list.addView(folderButton(kid));
+                if (kid.getName().startsWith(".")) continue;
+                if (kid.isDirectory()) list.addView(folderButton(kid));
+                else if (kid.getName().toLowerCase().endsWith(".pdf")) list.addView(fileRow(kid.getName()));
             }
         }
         if (list.getChildCount() == 0) {
@@ -170,6 +171,22 @@ public class FolderPickerActivity extends AppCompatActivity {
         params.setMargins(dp(16), dp(6), dp(16), dp(6));
         button.setLayoutParams(params);
         return button;
+    }
+
+    private TextView fileRow(String name) {
+        TextView row = new TextView(this);
+        row.setText(name);
+        row.setTextColor(Color.parseColor("#067647"));
+        row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.parseColor("#ecfdf3"));
+        shape.setCornerRadius(dp(12));
+        row.setBackground(shape);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(dp(16), dp(6), dp(16), dp(6));
+        row.setLayoutParams(params);
+        return row;
     }
 
     private TextView heading(String text) {

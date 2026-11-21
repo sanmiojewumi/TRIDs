@@ -73,7 +73,7 @@ public class SavePdfPlugin extends Plugin {
             .putString("saveDir", dir.getAbsolutePath())
             .putString(PICK, "ok")
             .putString(PICK_ID, java.util.UUID.randomUUID().toString())
-            .apply();
+            .commit();
     }
 
     public static void noteCancelled(android.content.Context context) {
@@ -262,17 +262,8 @@ public class SavePdfPlugin extends Plugin {
 
     private File saveDirectory() {
         String stored = prefs().getString(SAVE_DIR, null);
-        File fallback = new File(externalRoot(), DEFAULT_RELATIVE);
-        if (stored == null || stored.isEmpty()) return fallback;
-        File dir = new File(stored);
-        try {
-            String root = externalRoot().getCanonicalPath();
-            String chosen = dir.getCanonicalPath();
-            if (!chosen.equals(root) && !chosen.startsWith(root + File.separator)) return fallback;
-        } catch (IOException e) {
-            return fallback;
-        }
-        return dir;
+        if (stored == null || stored.isEmpty()) return new File(externalRoot(), DEFAULT_RELATIVE);
+        return new File(stored);
     }
 
     private String pretty(File dir) {
@@ -421,13 +412,19 @@ public class SavePdfPlugin extends Plugin {
 
     private String writeInvoiceFile(String filename, byte[] bytes) throws IOException {
         File dir = saveDirectory();
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not create the folder");
+        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Could not create " + pretty(dir));
+        if (!dir.isDirectory()) throw new IOException(pretty(dir) + " is not a folder");
         String base = filename.replaceFirst("\\.[^.]+$", "");
         String ext = filename.substring(base.length());
         File file = new File(dir, filename);
         for (int n = 2; file.exists() && n < 100; n++) file = new File(dir, base + " (" + n + ")" + ext);
         try (FileOutputStream out = new FileOutputStream(file)) {
             out.write(bytes);
+            out.flush();
+            out.getFD().sync();
+        }
+        if (!file.isFile() || file.length() != bytes.length) {
+            throw new IOException("The PDF was not written in " + pretty(dir));
         }
         MediaScannerConnection.scanFile(getContext(), new String[] { file.getAbsolutePath() }, new String[] { "application/pdf" }, null);
         return pretty(dir) + "/" + file.getName();

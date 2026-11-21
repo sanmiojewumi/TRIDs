@@ -148,7 +148,7 @@ export function Preview(props: Props) {
         {notice && <p class="hint center">{notice}</p>}
         {draft && <p class="hint center">Saving assigns reference {data.ref} and keeps a copy in Invoices.</p>}
         {isNativeApp() && (
-          <p class="hint center">Saving to {folder || 'Internal storage/TRIDS APPS/Invoice Desk'}. Choose folder asks for file access, then opens your folders.</p>
+          <p class="hint center">PDF saves to {folder || 'Internal storage/TRIDS APPS/Invoice Desk'}.</p>
         )}
         {!isNativeApp() && canChooseFolder() && (
           <p class="hint center">Choose folder, then download, to keep the PDF in a folder on this computer.</p>

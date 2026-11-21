@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { currentSaveFolder, isNativeApp } from './util';
 import { Clients } from './Clients';
 import { Invoices } from './Invoices';
 import { NewCertificate, SavedCertificates } from './Certificates';
@@ -34,10 +35,20 @@ function certMode(path: string): boolean {
 
 export function App() {
   const [path, setPath] = useState(currentPath);
+  const [folder, setFolder] = useState('');
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const refresh = () => {
+      void currentSaveFolder().then(setFolder).catch(() => setFolder(''));
+    };
+    refresh();
+    window.addEventListener('trids-resume', refresh);
+    return () => window.removeEventListener('trids-resume', refresh);
+  }, []);
   useEffect(() => {
     const on = () => {
       setPath(currentPath());
-      window.scrollTo(0, 0);
+      document.querySelector('.shell')?.scrollTo(0, 0);
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
@@ -51,6 +62,7 @@ export function App() {
         <a href="#/new" class={certs ? '' : 'on'} onClick={() => sessionStorage.setItem('desk-mode', 'invoice')}>Invoice</a>
         <a href="#/certs" class={certs ? 'on' : ''} onClick={() => sessionStorage.setItem('desk-mode', 'cert')}>Certificate</a>
       </div>
+      {folder && <p class="save-path">PDFs save to {folder}</p>}
       <nav class="nav" aria-label="Main">
         <div class="brand">{certs ? 'Certificates' : 'Invoice Desk'}</div>
         {routes.map((route) => (
