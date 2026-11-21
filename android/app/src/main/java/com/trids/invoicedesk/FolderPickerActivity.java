@@ -1,43 +1,59 @@
 package com.trids.invoicedesk;
 
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import java.io.File;
+import java.util.Arrays;
 
 /**
- * Opens the phone's folder list from a screen that is already in the foreground.
- * Starting that list from the WebView left the app inactive and never showed the folders.
+ * Lists folders on Internal storage. The system folder picker left this screen
+ * inactive and never asked for access, so the list is drawn here instead.
  */
 public class FolderPickerActivity extends AppCompatActivity {
 
-    private final ActivityResultLauncher<Uri> folders = registerForActivityResult(
-        new ActivityResultContracts.OpenDocumentTree(),
-        this::onFolder
-    );
-
-    private boolean opened;
-    private TextView message;
+    private static final int STORAGE_REQUEST = 41;
+    private File current;
+    private LinearLayout root;
+    private boolean askedAccess;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        opened = savedInstanceState != null && savedInstanceState.getBoolean("opened");
-        setContentView(buildScreen());
+        current = Environment.getExternalStorageDirectory();
+        root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.parseColor("#f4f6f8"));
+        root.setFitsSystemWindows(true);
+        setContentView(root);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                if (current != null && current.getParentFile() != null && !isRoot(current)) {
+                    current = current.getParentFile();
+                    show();
+                    return;
+                }
                 SavePdfPlugin.noteCancelled(FolderPickerActivity.this);
                 finish();
             }
@@ -45,90 +61,194 @@ public class FolderPickerActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        outState.putBoolean("opened", opened);
-        super.onSaveInstanceState(outState);
-    }
-
-    @Override
-    protected void onPostResume() {
-        super.onPostResume();
-        if (opened) return;
-        opened = true;
-        getWindow().getDecorView().post(this::showFolders);
-    }
-
-    private void showFolders() {
-        try {
-            folders.launch(null);
-            opened = true;
-        } catch (Exception err) {
-            opened = false;
-            if (message != null) {
-                message.setText("The folder list did not open. Tap Show folders and try again.");
-            }
-        }
-    }
-
-    private void onFolder(Uri tree) {
-        if (tree == null) {
-            opened = true;
-            if (message != null) {
-                message.setText("Open the folder you want, such as Internal storage, then tap Use this folder. Or tap Show folders to look again.");
+    protected void onResume() {
+        super.onResume();
+        if (!hasStorageAccess()) {
+            showPermission();
+            if (!askedAccess) {
+                askedAccess = true;
+                openAccessSettings();
             }
             return;
         }
-        SavePdfPlugin.rememberTree(this, tree);
-        finish();
+        if (current == null || !current.isDirectory()) current = Environment.getExternalStorageDirectory();
+        show();
     }
 
-    private View buildScreen() {
-        int pad = dp(24);
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
-        layout.setPadding(pad, dp(48), pad, pad);
-        layout.setBackgroundColor(Color.parseColor("#10141c"));
+    private boolean hasStorageAccess() {
+        if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
 
-        TextView title = new TextView(this);
-        title.setText("Choose a folder");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        layout.addView(title);
+    private void openAccessSettings() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            try {
+                startActivity(intent);
+            } catch (Exception err) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            }
+            return;
+        }
+        ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE }, STORAGE_REQUEST);
+    }
 
-        message = new TextView(this);
-        message.setText("Your phone folders should open now. Open the folder invoices should go in, then tap Use this folder.");
-        message.setTextColor(Color.parseColor("#d5dbe6"));
-        message.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        message.setPadding(0, dp(16), 0, dp(24));
-        layout.addView(message);
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == STORAGE_REQUEST && hasStorageAccess()) show();
+    }
 
-        Button show = new Button(this);
-        show.setText("Show folders");
-        show.setAllCaps(false);
-        show.setTextColor(Color.WHITE);
-        show.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(Color.parseColor("#2f6fed"));
-        shape.setCornerRadius(dp(12));
-        show.setBackground(shape);
-        show.setMinHeight(dp(48));
-        show.setPadding(dp(18), dp(12), dp(18), dp(12));
-        show.setOnClickListener((view) -> showFolders());
-        layout.addView(show, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        Button back = new Button(this);
-        back.setText("Back");
-        back.setAllCaps(false);
-        back.setTextColor(Color.parseColor("#d5dbe6"));
-        back.setBackgroundColor(Color.TRANSPARENT);
-        back.setOnClickListener((view) -> {
+    private void showPermission() {
+        root.removeAllViews();
+        TextView title = heading("Allow file access");
+        root.addView(title);
+        TextView message = body("Android needs permission before Invoice Desk can open your folders. Turn on Allow access to manage all files, then come back to this screen.");
+        root.addView(message);
+        root.addView(primary("Allow file access", (view) -> openAccessSettings()));
+        root.addView(quiet("Back", (view) -> {
             SavePdfPlugin.noteCancelled(this);
             finish();
+        }));
+    }
+
+    private void show() {
+        root.removeAllViews();
+        TextView title = heading(pretty(current));
+        root.addView(title);
+        TextView message = body("Open a folder, then tap Use this folder. PDFs are saved there.");
+        root.addView(message);
+        if (!isRoot(current)) root.addView(primary("Up one folder", (view) -> {
+            File parent = current.getParentFile();
+            if (parent != null) current = parent;
+            show();
+        }));
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        File[] kids = current.listFiles();
+        if (kids != null) {
+            Arrays.sort(kids, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+            for (File kid : kids) {
+                if (kid.getName().startsWith(".")) continue;
+                if (kid.isDirectory()) list.addView(folderButton(kid));
+                else if (kid.getName().toLowerCase().endsWith(".pdf")) list.addView(fileRow(kid.getName()));
+            }
+        }
+        if (list.getChildCount() == 0) {
+            TextView empty = body("No folders inside this one. You can still use this folder.");
+            list.addView(empty);
+        }
+        scroll.addView(list);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        root.addView(scroll, scrollParams);
+        root.addView(primary("Use this folder", (view) -> {
+            SavePdfPlugin.rememberDirectory(this, current);
+            finish();
+        }));
+    }
+
+    private Button folderButton(File dir) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(dir.getName());
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setTextColor(Color.parseColor("#1f2933"));
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        button.setMinHeight(dp(52));
+        button.setPadding(dp(16), dp(8), dp(16), dp(8));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.WHITE);
+        shape.setCornerRadius(dp(12));
+        shape.setStroke(dp(1), Color.parseColor("#d9dee5"));
+        button.setBackground(shape);
+        button.setOnClickListener((view) -> {
+            current = dir;
+            show();
         });
-        layout.addView(back);
-        return layout;
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(dp(16), dp(6), dp(16), dp(6));
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private TextView fileRow(String name) {
+        TextView row = new TextView(this);
+        row.setText(name);
+        row.setTextColor(Color.parseColor("#067647"));
+        row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        row.setPadding(dp(16), dp(12), dp(16), dp(12));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.parseColor("#ecfdf3"));
+        shape.setCornerRadius(dp(12));
+        row.setBackground(shape);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(dp(16), dp(6), dp(16), dp(6));
+        row.setLayoutParams(params);
+        return row;
+    }
+
+    private TextView heading(String text) {
+        TextView title = new TextView(this);
+        title.setText(text);
+        title.setTextColor(Color.parseColor("#1f2933"));
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setPadding(dp(16), dp(20), dp(16), dp(4));
+        return title;
+    }
+
+    private TextView body(String text) {
+        TextView message = new TextView(this);
+        message.setText(text);
+        message.setTextColor(Color.parseColor("#667085"));
+        message.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        message.setPadding(dp(16), dp(8), dp(16), dp(12));
+        return message;
+    }
+
+    private Button primary(String label, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        button.setMinHeight(dp(52));
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(Color.parseColor("#0f6fc6"));
+        shape.setCornerRadius(dp(12));
+        button.setBackground(shape);
+        button.setOnClickListener(listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(dp(16), dp(8), dp(16), dp(8));
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private Button quiet(String label, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(label);
+        button.setTextColor(Color.parseColor("#0f6fc6"));
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setOnClickListener(listener);
+        return button;
+    }
+
+    private boolean isRoot(File dir) {
+        File rootDir = Environment.getExternalStorageDirectory();
+        return dir.getAbsolutePath().equals(rootDir.getAbsolutePath());
+    }
+
+    private String pretty(File dir) {
+        File rootDir = Environment.getExternalStorageDirectory();
+        String rootPath = rootDir.getAbsolutePath();
+        String path = dir.getAbsolutePath();
+        if (path.equals(rootPath)) return "Internal storage";
+        if (path.startsWith(rootPath + File.separator)) return "Internal storage/" + path.substring(rootPath.length() + 1);
+        return path;
     }
 
     private int dp(int value) {

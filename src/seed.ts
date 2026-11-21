@@ -16,6 +16,7 @@ export const emptyBusiness: Business = {
   logo: '',
   logoRatio: 1,
   vatRegistered: false,
+  gasSafeId: '',
 };
 
 export const tridsBusiness: Business = {
@@ -151,5 +152,6 @@ export function freshState(): AppState {
     templates: builtInTemplates.map((t) => ({ ...t })),
     clients: starterClients(),
     invoices: [],
+    certificates: [],
   };
 }

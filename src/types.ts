@@ -46,6 +46,8 @@ export interface Business {
   /** width / height of the logo image. */
   logoRatio: number;
   vatRegistered: boolean;
+  /** Gas Safe engineer licence number, printed on certificates. */
+  gasSafeId: string;
 }
 
 export interface Bank {
@@ -123,6 +125,67 @@ export interface Numbering {
   padding: number;
 }
 
+export type CertKind = 'landlord' | 'service' | 'repair';
+export type CheckResult = 'pass' | 'fail' | 'na';
+
+/** One fire rate from the flue gas analyser. */
+export interface FgaReading {
+  co: string;
+  co2: string;
+  ratio: string;
+}
+
+export interface CertAppliance {
+  location: string;
+  applianceType: string;
+  make: string;
+  model: string;
+  serial: string;
+  flue: string;
+  operating: CheckResult;
+  safetyDevice: CheckResult;
+  ventilation: CheckResult;
+  flueCondition: CheckResult;
+  combustion: string;
+  safe: 'yes' | 'no';
+  defects: string;
+}
+
+/** A gas certificate, kept on the phone with the invoices. */
+export interface CertificateData {
+  kind: CertKind;
+  ref: string;
+  date: string;
+  nextDue: string;
+  customerName: string;
+  customerAddress: string;
+  postcode: string;
+  tenantName: string;
+  appliances: CertAppliance[];
+  tightness: CheckResult;
+  pipework: CheckResult;
+  emergencyControl: CheckResult;
+  coAlarm: 'yes' | 'no' | 'na';
+  fgaLow: FgaReading;
+  fgaHigh: FgaReading;
+  gasRate: string;
+  burnerPressure: string;
+  faultReported: string;
+  workDone: string;
+  partsFitted: string;
+  warningNotice: boolean;
+  notes: string;
+  engineerName: string;
+  gasSafeId: string;
+  business: Business;
+}
+
+export interface CertificateRecord {
+  id: string;
+  createdAt: string;
+  data: CertificateData;
+}
+
 export interface AppState {
   version: 1;
   numbering: Numbering;
@@ -131,6 +194,7 @@ export interface AppState {
   templates: Template[];
   clients: Client[];
   invoices: InvoiceRecord[];
+  certificates: CertificateRecord[];
 }
 
 /** What the "new invoice" form edits. */
