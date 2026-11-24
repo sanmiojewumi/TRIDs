@@ -1,0 +1,28 @@
+{
+  "name": "ninted9ja",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ninted 9ja — peer-to-peer marketplace for Nigeria. Web, mobile, and one API.",
+  "scripts": {
+    "dev:api": "pnpm --filter @ninted/api dev",
+    "dev:web": "pnpm --filter @ninted/web dev",
+    "dev:mobile": "pnpm --filter @ninted/mobile dev",
+    "test": "pnpm --filter @ninted/domain test && pnpm --filter @ninted/api test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @ninted/api db:generate",
+    "db:migrate": "pnpm --filter @ninted/api db:migrate",
+    "db:seed": "pnpm --filter @ninted/api db:seed",
+    "build:web": "pnpm --filter @ninted/web build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.9.0",
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.3.1",
+      "@types/react-dom": "19.3.0"
+    },
+    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "prisma"]
+  }
+}

@@ -1,0 +1,15 @@
+node_modules
+.pnpm-store
+dist
+.next
+.expo
+.turbo
+coverage
+.env
+.env.local
+*.log
+uploads
+apps/api/uploads
+apps/api/prisma/*.db
+.DS_Store
+tsconfig.tsbuildinfo

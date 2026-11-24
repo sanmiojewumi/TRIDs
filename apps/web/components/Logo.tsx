@@ -1,0 +1,12 @@
+export function Logo() {
+  return (
+    <span className="brand">
+      <svg viewBox="0 0 40 40" role="img" aria-label="Ninted 9ja">
+        <rect width="40" height="40" rx="13" fill="#12382c" />
+        <path d="M11 29.5c.4-9 7.2-15.5 16.2-15.2-1.2 4.6-4.2 7.4-8.4 8.8 4.8.6 8.2 3.6 8.7 8.2H14.2c-.2-1.6 1.2-3 3.6-3.6-3.2-.7-5.8-2.2-6.8-1.2z" fill="#d7f26a" />
+        <circle cx="28.2" cy="13.2" r="2.1" fill="#fffdf8" />
+      </svg>
+      Ninted <em>9ja</em>
+    </span>
+  );
+}

@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Ninted 9ja",
+    "slug": "ninted9ja",
+    "scheme": "ninted9ja",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "ios": { "supportsTablet": true, "bundleIdentifier": "ng.ninted9ja.app" },
+    "android": { "package": "ng.ninted9ja.app", "adaptiveIcon": { "backgroundColor": "#12382c" } },
+    "extra": { "apiUrl": "http://127.0.0.1:4000" }
+  }
+}

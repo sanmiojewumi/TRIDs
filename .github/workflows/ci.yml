@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ninted
+          POSTGRES_PASSWORD: ninted
+          POSTGRES_DB: ninted_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ninted"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ninted:ninted@localhost:5432/ninted_test?schema=public
+      TEST_DATABASE_URL: postgresql://ninted:ninted@localhost:5432/ninted_test?schema=public
+      ACCESS_TOKEN_SECRET: test-access-token-secret-with-32-chars
+      SECRET_ENCRYPTION_KEY: ababababababababababababababababababababababababababababababababab
+      PAYMENT_PROVIDER: paystack
+      PAYSTACK_SECRET_KEY: sk_test_ninted
+      WEB_ORIGIN: http://localhost:3000
+      PUBLIC_WEB_URL: http://localhost:3000
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @ninted/api exec prisma generate
+      - run: pnpm test
+      - run: pnpm --filter @ninted/api typecheck
+      - run: pnpm --filter @ninted/web typecheck
+      - run: pnpm --filter @ninted/web build
