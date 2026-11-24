@@ -1,0 +1,826 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                         String        @id @default(cuid())
+  email                      String        @unique
+  phone                      String?
+  passwordHash               String
+  displayName                String
+  avatarUrl                  String?
+  status                     AccountStatus @default(ACTIVE)
+  mfaSecretEnc               String?
+  mfaEnabled                 Boolean       @default(false)
+  failedPaymentCount         Int           @default(0)
+  failedPaymentWindowStart   DateTime?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+  roles                      UserRole[]
+  seller                     SellerProfile?
+  addresses                  Address[]
+  cartItems                  CartItem[]
+  favorites                  Favorite[]
+  buyerOrders                Order[]       @relation("BuyerOrders")
+  sentMessages               Message[]
+  notifications              Notification[]
+  auditLogs                  AuditLog[]
+  refreshTokens              RefreshToken[]
+  reviews                    Review[]
+  offers                     Offer[]
+  payouts                    Payout[]
+  rider                      Rider?
+  bankAccounts               BankAccount[]
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+model UserRole {
+  userId String
+  role   StaffRole
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+enum StaffRole {
+  SUPPORT
+  MODERATOR
+  FINANCE_ADMIN
+  LOGISTICS_ADMIN
+  SUPER_ADMIN
+}
+
+model SellerProfile {
+  userId             String             @id
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type               SellerType
+  storeName          String
+  bio                String             @default("")
+  city               String?
+  state              String?
+  verification       VerificationStatus @default(UNVERIFIED)
+  verificationNote   String?
+  businessName       String?
+  cacNumber          String?
+  ninLast4           String?
+  ratingAvg          Float              @default(0)
+  ratingCount        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  products           Product[]
+  sales              Order[]            @relation("SellerOrders")
+}
+
+enum SellerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String
+  recipient  String
+  phone      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  country    String  @default("NG")
+  isDefault  Boolean @default(false)
+  orders     Order[]
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  name      String
+  parentId  String?
+  parent    Category?  @relation("CatTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CatTree")
+  products  Product[]
+  sortOrder Int        @default(0)
+}
+
+model Product {
+  id                String           @id @default(cuid())
+  sellerId          String
+  seller            SellerProfile    @relation(fields: [sellerId], references: [userId])
+  title             String
+  description       String
+  categoryId        String
+  category          Category         @relation(fields: [categoryId], references: [id])
+  brand             String?
+  size              String?
+  colour            String?
+  condition         ProductCondition
+  priceKobo         Int
+  quantity          Int              @default(1)
+  reserved          Int              @default(0)
+  status            ProductStatus    @default(PENDING_REVIEW)
+  state             String
+  city              String
+  deliveryEligible  Boolean          @default(true)
+  weightGrams       Int?
+  lengthCm          Int?
+  widthCm           Int?
+  heightCm          Int?
+  offersEnabled     Boolean          @default(true)
+  viewCount         Int              @default(0)
+  favoriteCount     Int              @default(0)
+  featuredUntil     DateTime?
+  moderationNote    String?
+  rejectionReason   String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  images            ProductImage[]
+  favorites         Favorite[]
+  cartItems         CartItem[]
+  offers            Offer[]
+  orderItems        OrderItem[]
+
+  @@index([status, createdAt])
+  @@index([categoryId, status])
+  @@index([sellerId, status])
+}
+
+enum ProductCondition {
+  NEW_WITH_TAGS
+  NEW_WITHOUT_TAGS
+  VERY_GOOD
+  GOOD
+  SATISFACTORY
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  PAUSED
+  REJECTED
+  SOLD
+  REMOVED
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int     @default(0)
+}
+
+model Favorite {
+  userId    String
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+model CartItem {
+  userId    String
+  productId String
+  quantity  Int     @default(1)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+}
+
+model Offer {
+  id          String      @id @default(cuid())
+  productId   String
+  product     Product     @relation(fields: [productId], references: [id])
+  buyerId     String
+  buyer       User        @relation(fields: [buyerId], references: [id])
+  amountKobo  Int
+  status      OfferStatus @default(PENDING)
+  counterKobo Int?
+  expiresAt   DateTime
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([productId, buyerId])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COUNTERED
+  EXPIRED
+  CANCELLED
+}
+
+model CommercialSetting {
+  id            String           @id @default(cuid())
+  key           String
+  sellerType    SellerType?
+  categoryId    String?
+  valueType     SettingValueType
+  valueNumber   Int?
+  valueJson     Json?
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  reason        String
+  createdById   String
+  createdAt     DateTime         @default(now())
+
+  @@index([key, effectiveFrom])
+}
+
+enum SettingValueType {
+  BPS
+  FIXED_KOBO
+  JSON
+}
+
+model Coupon {
+  id               String           @id @default(cuid())
+  code             String           @unique
+  description      String
+  bpsOff           Int              @default(0)
+  fixedOffKobo     Int              @default(0)
+  maxDiscountKobo  Int?
+  fundedBy         DiscountFunding
+  sellerType       SellerType?
+  categoryId       String?
+  startsAt         DateTime
+  endsAt           DateTime?
+  maxRedemptions   Int?
+  redemptions      Int              @default(0)
+  active           Boolean          @default(true)
+  createdById      String
+  createdAt        DateTime         @default(now())
+}
+
+enum DiscountFunding {
+  PLATFORM
+  SELLER
+}
+
+model Promotion {
+  id                 String    @id @default(cuid())
+  title              String
+  body               String
+  linkUrl            String?
+  startsAt           DateTime
+  endsAt             DateTime?
+  active             Boolean   @default(true)
+  priceKoboSnapshot  Int       @default(0)
+  createdAt          DateTime  @default(now())
+}
+
+model Order {
+  id                   String      @id @default(cuid())
+  buyerId              String
+  buyer                User        @relation("BuyerOrders", fields: [buyerId], references: [id])
+  sellerId             String
+  seller               SellerProfile @relation("SellerOrders", fields: [sellerId], references: [userId])
+  status               OrderStatus @default(PENDING_PAYMENT)
+  currency             String      @default("NGN")
+  itemsSubtotalKobo    Int
+  discountKobo         Int
+  buyerProtectionKobo  Int
+  deliveryFeeKobo      Int
+  deliverySubsidyKobo  Int
+  commissionKobo       Int
+  sellerNetKobo        Int
+  buyerTotalKobo       Int
+  feeSnapshot          Json
+  couponCode           String?
+  addressId            String?
+  address              Address?    @relation(fields: [addressId], references: [id])
+  handover             String
+  buyerNote            String?
+  idempotencyKey       String?
+  expiresAt            DateTime?
+  paidAt               DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  items                OrderItem[]
+  payments             Payment[]
+  shipment             Shipment?
+  returnRequests       ReturnRequest[]
+  reviews              Review[]
+  timeline             OrderEvent[]
+
+  @@unique([buyerId, idempotencyKey])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, status])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  AWAITING_DISPATCH
+  DISPATCHED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUND_PENDING
+  REFUNDED
+  DISPUTED
+}
+
+model OrderItem {
+  id            String           @id @default(cuid())
+  orderId       String
+  order         Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product          @relation(fields: [productId], references: [id])
+  title         String
+  unitPriceKobo Int
+  quantity      Int
+  categoryId    String
+  condition     ProductCondition
+}
+
+model OrderEvent {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  actorId   String?
+  createdAt DateTime    @default(now())
+}
+
+model Payment {
+  id                     String          @id @default(cuid())
+  purpose                PaymentPurpose
+  orderId                String?
+  order                  Order?          @relation(fields: [orderId], references: [id])
+  userId                 String
+  provider               PaymentProvider
+  reference              String          @unique
+  amountKobo             Int
+  currency               String          @default("NGN")
+  status                 PaymentStatus   @default(INITIATED)
+  providerTransactionId  String?
+  authorizationUrl       String?
+  verifiedAt             DateTime?
+  failureReason          String?
+  metadata               Json?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  refunds                Refund[]
+
+  @@index([orderId])
+  @@index([status])
+}
+
+enum PaymentPurpose {
+  ORDER
+  FEATURED_LISTING
+  SUBSCRIPTION
+  CAMPAIGN
+}
+
+enum PaymentProvider {
+  PAYSTACK
+  FLUTTERWAVE
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+}
+
+model Refund {
+  id                String       @id @default(cuid())
+  paymentId         String
+  payment           Payment      @relation(fields: [paymentId], references: [id])
+  amountKobo        Int
+  status            RefundStatus @default(REQUESTED)
+  reason            String
+  providerRefundId  String?
+  failureReason     String?
+  requestedById     String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+enum RefundStatus {
+  REQUESTED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+model LedgerEntry {
+  id         String           @id @default(cuid())
+  account    LedgerAccount
+  direction  LedgerDirection
+  amountKobo Int
+  userId     String?
+  orderId    String?
+  paymentId  String?
+  payoutId   String?
+  refundId   String?
+  memo       String
+  createdAt  DateTime         @default(now())
+
+  @@index([account, userId])
+  @@index([orderId])
+  @@index([paymentId])
+}
+
+enum LedgerAccount {
+  PAYMENT_CLEARING
+  COMMISSION_REVENUE
+  BUYER_PROTECTION_REVENUE
+  DELIVERY_CLEARING
+  DELIVERY_SUBSIDY
+  SELLER_PAYABLE
+  PLATFORM_DISCOUNT
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+model Payout {
+  id                  String       @id @default(cuid())
+  sellerId            String
+  seller              User         @relation(fields: [sellerId], references: [id])
+  amountKobo          Int
+  status              PayoutStatus @default(PENDING)
+  bankName            String?
+  accountNumberLast4  String?
+  accountName         String?
+  externalReference   String?
+  note                String?
+  requestedAt         DateTime     @default(now())
+  decidedById         String?
+  paidAt              DateTime?
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  REJECTED
+  FAILED
+}
+
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  provider  String
+  eventKey  String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@unique([provider, eventKey])
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  orderId           String         @unique
+  order             Order          @relation(fields: [orderId], references: [id])
+  courierCode       String
+  serviceLabel      String
+  status            ShipmentStatus @default(PENDING_DISPATCH)
+  providerBookingId String?
+  waybill           String?
+  trackingNumber    String?
+  quoteFeeKobo      Int
+  subsidyKobo       Int
+  weightGrams       Int?
+  pickupAddress     Json
+  deliveryAddress   Json
+  failureReason     String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  events            ShipmentEvent[]
+  job               DeliveryJob?
+}
+
+enum ShipmentStatus {
+  QUOTED
+  PENDING_DISPATCH
+  BOOKED
+  PICKUP_SCHEDULED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  CANCELLED
+  RETURN_IN_TRANSIT
+  RETURNED
+}
+
+model ShipmentEvent {
+  id         String         @id @default(cuid())
+  shipmentId String
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status     ShipmentStatus
+  note       String?
+  source     String
+  actorId    String?
+  createdAt  DateTime       @default(now())
+}
+
+model CourierProvider {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  displayName  String
+  enabled      Boolean  @default(false)
+  baseUrl      String?
+  apiKeyEnc    String?
+  coverageNote String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ReturnRequest {
+  id               String       @id @default(cuid())
+  orderId          String
+  order            Order        @relation(fields: [orderId], references: [id])
+  reason           ReturnReason
+  details          String
+  status           ReturnStatus @default(REQUESTED)
+  evidence         Json?
+  sellerResponse   String?
+  adminNote        String?
+  inspectionNote   String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  events           ReturnEvent[]
+}
+
+enum ReturnReason {
+  NOT_AS_DESCRIBED
+  WRONG_ITEM
+  DAMAGED
+  MISSING_COMPONENTS
+  SUSPECTED_COUNTERFEIT
+  OTHER
+}
+
+enum ReturnStatus {
+  REQUESTED
+  SELLER_REVIEW
+  ADMIN_REVIEW
+  APPROVED
+  REJECTED
+  AWAITING_PICKUP
+  IN_TRANSIT
+  RECEIVED
+  INSPECTED
+  REFUND_APPROVED
+  REFUNDED
+  CLOSED
+}
+
+model ReturnEvent {
+  id        String       @id @default(cuid())
+  returnId  String
+  request   ReturnRequest @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  status    ReturnStatus
+  note      String?
+  actorId   String?
+  createdAt DateTime     @default(now())
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  reviewerId String
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
+  sellerId   String
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@unique([orderId, reviewerId])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  buyerId   String
+  sellerId  String
+  productId String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  @@unique([buyerId, sellerId, productId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  body           String
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel
+  title     String
+  body      String
+  status    NotificationDelivery @default(PENDING)
+  linkUrl   String?
+  createdAt DateTime             @default(now())
+  readAt    DateTime?
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum NotificationDelivery {
+  PENDING
+  SENT
+  SKIPPED_UNCONFIGURED
+  FAILED
+  READ
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model ProhibitedTerm {
+  id        String   @id @default(cuid())
+  term      String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model FraudFlag {
+  id        String   @id @default(cuid())
+  userId    String?
+  paymentId String?
+  code      String
+  detail    String
+  createdAt DateTime @default(now())
+}
+
+model Subscription {
+  id         String     @id @default(cuid())
+  sellerId   String
+  sellerType SellerType
+  amountKobo Int
+  startsAt   DateTime
+  endsAt     DateTime
+  paymentId  String?
+  createdAt  DateTime   @default(now())
+}
+
+model PlatformPolicy {
+  slug        String   @id
+  title       String
+  body        String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Rider {
+  userId       String           @id
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       RiderStatus      @default(APPLIED)
+  ninLast4     String?
+  city         String
+  state        String
+  vehicleType  String?
+  plateNumber  String?
+  approvalNote String?
+  available    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  documents    RiderDocument[]
+  jobs         DeliveryJob[]
+}
+
+enum RiderStatus {
+  APPLIED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model RiderDocument {
+  id        String   @id @default(cuid())
+  riderId   String
+  rider     Rider    @relation(fields: [riderId], references: [userId], onDelete: Cascade)
+  kind      String
+  url       String
+  createdAt DateTime @default(now())
+}
+
+model DeliveryJob {
+  id              String     @id @default(cuid())
+  shipmentId      String     @unique
+  shipment        Shipment   @relation(fields: [shipmentId], references: [id])
+  riderId         String?
+  rider           Rider?     @relation(fields: [riderId], references: [userId])
+  status          JobStatus  @default(OFFERED)
+  pickupPinHash   String
+  dropoffPinHash  String
+  offeredAt       DateTime   @default(now())
+  acceptedAt      DateTime?
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  earningsKobo    Int        @default(0)
+  pings           JobPing[]
+  photos          JobPhoto[]
+}
+
+enum JobStatus {
+  OFFERED
+  ACCEPTED
+  REJECTED
+  PICKUP_CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+model JobPing {
+  id        String      @id @default(cuid())
+  jobId     String
+  job       DeliveryJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  createdAt DateTime    @default(now())
+}
+
+model JobPhoto {
+  id        String      @id @default(cuid())
+  jobId     String
+  job       DeliveryJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  kind      String
+  url       String
+  createdAt DateTime    @default(now())
+}
+
+model BankAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName          String
+  accountName       String
+  accountNumberEnc  String
+  last4             String
+  createdAt         DateTime @default(now())
+}
