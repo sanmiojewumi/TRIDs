@@ -40,6 +40,11 @@ export interface AppDeps {
 const userInclude = { roles: true, seller: true } satisfies Prisma.UserInclude;
 type SessionUser = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
+function shopName(displayName: string) {
+  const name = displayName.trim() || 'Member';
+  return /shop$/i.test(name) ? name : `${name}'s shop`;
+}
+
 declare module 'fastify' {
   interface FastifyRequest {
     rawBody?: string;
@@ -334,6 +339,8 @@ export async function buildApp(deps: AppDeps) {
         verification: seller.verification,
         ratingAvg: seller.ratingAvg,
         ratingCount: seller.ratingCount,
+        itemCount: seller.products.length,
+        openedAt: seller.createdAt,
       },
       products: seller.products.map(serializeProduct),
     };
@@ -364,18 +371,15 @@ export async function buildApp(deps: AppDeps) {
           passwordHash,
           displayName: body.displayName.trim(),
           phone: body.phone?.trim() || null,
-          seller:
-            body.intent === 'SELL_INDIVIDUAL' || body.intent === 'SELL_BUSINESS'
-              ? {
-                  create: {
-                    type: body.intent === 'SELL_BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL',
-                    storeName: body.storeName?.trim() || body.displayName.trim(),
-                    city: body.city,
-                    state: body.state,
-                    businessName: body.intent === 'SELL_BUSINESS' ? body.storeName : null,
-                  },
-                }
-              : undefined,
+          seller: {
+            create: {
+              type: body.intent === 'SELL_BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL',
+              storeName: body.storeName?.trim() || shopName(body.displayName.trim()),
+              city: body.city?.trim() || null,
+              state: body.state?.trim() || null,
+              businessName: body.intent === 'SELL_BUSINESS' ? body.storeName?.trim() || null : null,
+            },
+          },
         },
         include: userInclude,
       });
@@ -428,9 +432,21 @@ export async function buildApp(deps: AppDeps) {
     return { ok: true };
   });
 
+  async function ensureShop(user: SessionUser): Promise<SessionUser> {
+    if (user.seller) return user;
+    try {
+      await prisma.sellerProfile.create({
+        data: { userId: user.id, type: 'INDIVIDUAL', storeName: shopName(user.displayName) },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+    }
+    return prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: userInclude });
+  }
+
   app.get('/auth/me', async (request) => {
     try {
-      return { user: publicUser(await requireUser(request)) };
+      return { user: publicUser(await ensureShop(await requireUser(request))) };
     } catch (error) {
       if (error instanceof HttpError && error.status === 401) return { user: null };
       throw error;
@@ -562,9 +578,24 @@ export async function buildApp(deps: AppDeps) {
   });
 
   app.post('/seller/profile', async (request, reply) => {
-    const user = await requireUser(request);
-    if (user.seller) return { seller: publicUser({ ...user, seller: user.seller }).seller };
+    const user = await ensureShop(await requireUser(request));
     const body = request.body as { type?: 'INDIVIDUAL' | 'BUSINESS'; storeName?: string; city?: string; state?: string };
+    if (user.seller && (body.storeName || body.city || body.state || body.type)) {
+      if (body.state && !isNigerianState(body.state)) throw new HttpError(400, 'Choose a Nigerian state');
+      await prisma.sellerProfile.update({
+        where: { userId: user.id },
+        data: {
+          ...(body.type ? { type: body.type === 'BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL' } : {}),
+          ...(body.storeName?.trim() ? { storeName: body.storeName.trim() } : {}),
+          ...(body.city !== undefined ? { city: body.city } : {}),
+          ...(body.state ? { state: body.state } : {}),
+          ...(body.type === 'BUSINESS' && body.storeName ? { businessName: body.storeName.trim() } : {}),
+        },
+      });
+      const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: userInclude });
+      return { user: publicUser(fresh) };
+    }
+    if (user.seller) return { user: publicUser(user) };
     if (!body.storeName || !body.state || !isNigerianState(body.state)) throw new HttpError(400, 'Add a store name and a Nigerian state');
     await prisma.sellerProfile.create({
       data: {

@@ -46,6 +46,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link href="/cart" data-active={pathname.startsWith('/cart')} onClick={closeMenu}>Basket</Link>
           <Link href="/favourites" data-active={pathname.startsWith('/favourites')} onClick={closeMenu}>Favourites</Link>
           <Link href="/sell" data-active={pathname.startsWith('/sell')} onClick={closeMenu}>Sell</Link>
+          {user?.seller ? <Link href={`/seller/${user.id}`} data-active={pathname === `/seller/${user.id}`} onClick={closeMenu}>My shop</Link> : null}
           <Link href="/messages" data-active={pathname.startsWith('/messages')} onClick={closeMenu}>Inbox</Link>
           {user ? <Link href="/orders" data-active={pathname.startsWith('/orders')} onClick={closeMenu}>Orders</Link> : null}
           {staff ? <Link href="/admin" data-active={pathname.startsWith('/admin')} onClick={closeMenu}>Admin</Link> : null}

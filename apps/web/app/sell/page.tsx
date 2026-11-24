@@ -40,7 +40,10 @@ export default function SellPage() {
     <div className="stack">
       <div className="row">
         <h1 style={{ fontFamily: 'var(--serif)' }}>{user.seller.storeName}</h1>
-        <Link className="btn" href="/sell/new">New listing</Link>
+        <span className="row">
+          <Link className="btn light" href={`/seller/${user.id}`}>View shop</Link>
+          <Link className="btn" href="/sell/new">New listing</Link>
+        </span>
       </div>
       <p className="muted">Verification: {user.seller.verification}. Rating {user.seller.ratingCount ? user.seller.ratingAvg.toFixed(1) : 'not yet'}.</p>
       <div className="row">

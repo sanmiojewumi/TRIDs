@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { formatNaira } from '@ninted/domain/money';
-import { Artwork } from '@/components/ProductCard';
+import { ProductStage } from '@/components/ProductCard';
 import { ApiError, api } from '@/lib/api';
 import { useSession } from '@/lib/session';
 
@@ -59,8 +59,7 @@ export default function ProductPage() {
   return (
     <div className="split">
       <div className="gallery">
-        <Artwork seed={product.id} label={product.brand || product.condition} image={product.images[0]?.url} />
-        <div className="chips">{product.images.slice(1).map((image) => <img key={image.url} src={image.url} alt="" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 12 }} />)}</div>
+        <ProductStage images={product.images.map((image) => image.url)} seed={product.id} label={product.title} />
       </div>
       <div className="stack">
         <p className="kicker">{product.category?.name} · Listed {new Date(product.createdAt).toLocaleDateString('en-NG')}</p>

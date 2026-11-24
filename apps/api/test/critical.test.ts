@@ -351,20 +351,15 @@ describe('marketplace critical paths', () => {
     expect(profile.json().user.displayName).toBe('Updated Member');
     expect(profile.json().user.phone).toBe('08039998888');
     expect(profile.json().user.smsNotifications).toBe(true);
-    const seller = await app.inject({
-      method: 'POST',
-      url: '/seller/profile',
-      headers,
-      payload: { type: 'INDIVIDUAL', storeName: 'Member Closet', state: 'Lagos', city: 'Ikeja' },
-    });
-    expect(seller.statusCode).toBe(201);
+    expect(created.json().user.seller.storeName).toBe("New Member's shop");
     const edited = await app.inject({
       method: 'PATCH',
       url: '/seller/profile',
       headers,
-      payload: { bio: 'Lagos wardrobe', city: 'Yaba' },
+      payload: { storeName: 'Member Closet', bio: 'Lagos wardrobe', city: 'Yaba' },
     });
     expect(edited.statusCode).toBe(200);
+    expect(edited.json().user.seller.storeName).toBe('Member Closet');
     expect(edited.json().user.seller.bio).toBe('Lagos wardrobe');
     expect(edited.json().user.seller.city).toBe('Yaba');
     const rejected = await app.inject({
