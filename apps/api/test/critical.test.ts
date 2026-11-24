@@ -79,23 +79,34 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+async function registerMember(input: { email: string; password: string; displayName: string; phone: string }) {
+  const started = await app.inject({ method: 'POST', url: '/auth/challenges', payload: { email: input.email, phone: input.phone } });
+  expect(started.statusCode).toBe(200);
+  const preview = started.json().preview as { email: string; phone: string };
+  return app.inject({
+    method: 'POST',
+    url: '/auth/register',
+    payload: { ...input, emailCode: preview.email, phoneCode: preview.phone },
+  });
+}
+
 describe('marketplace critical paths', () => {
   it('snapshots commercial terms, verifies payment once, and keeps the ledger balanced', async () => {
     const category = await prisma.category.create({ data: { slug: 'shoes', name: 'Shoes' } });
-    const sellerRes = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: {
-        email: 'seller@example.com',
-        password: 'Correct-horse-1',
-        displayName: 'Ada Seller',
-        intent: 'SELL_INDIVIDUAL',
-        storeName: 'Ada Closet',
-        state: 'Lagos',
-        city: 'Yaba',
-      },
+    const sellerRes = await registerMember({
+      email: 'seller@example.com',
+      password: 'Correct-horse-1',
+      displayName: 'Ada Seller',
+      phone: '08031110001',
     });
     expect(sellerRes.statusCode).toBe(201);
+    const opened = await app.inject({
+      method: 'POST',
+      url: '/seller/profile',
+      headers: { authorization: `Bearer ${sellerRes.json().accessToken}` },
+      payload: { type: 'INDIVIDUAL', storeName: 'Ada Closet', state: 'Lagos', city: 'Yaba' },
+    });
+    expect(opened.statusCode).toBe(201);
     const seller = sellerRes.json().user;
     const { hashPassword } = await import('../src/auth.js');
     const secret = new OTPAuth.Secret({ size: 20 });
@@ -191,11 +202,13 @@ describe('marketplace critical paths', () => {
     });
     expect(held.json().product.status).toBe('PENDING_REVIEW');
 
-    const buyerRes = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: { email: 'buyer@example.com', password: 'Correct-horse-1', displayName: 'Tunde Buyer', state: 'Lagos' },
+    const buyerRes = await registerMember({
+      email: 'buyer@example.com',
+      password: 'Correct-horse-1',
+      displayName: 'Tunde Buyer',
+      phone: '08032220002',
     });
+    expect(buyerRes.statusCode).toBe(201);
     const buyerToken = buyerRes.json().accessToken as string;
     const address = await app.inject({
       method: 'POST',
@@ -333,11 +346,15 @@ describe('marketplace critical paths', () => {
   });
 
   it('creates an account and saves profile, settings, and a new password', async () => {
-    const created = await app.inject({
+    const wrong = await app.inject({ method: 'POST', url: '/auth/challenges', payload: { email: 'member@example.com', phone: '08031112222' } });
+    expect(wrong.statusCode).toBe(200);
+    const badCode = await app.inject({
       method: 'POST',
       url: '/auth/register',
-      payload: { email: 'member@example.com', password: 'Correct-horse-1', displayName: 'New Member', phone: '08031112222', intent: 'BUY' },
+      payload: { email: 'member@example.com', password: 'Correct-horse-1', displayName: 'New Member', phone: '08031112222', emailCode: '000000', phoneCode: wrong.json().preview.phone },
     });
+    expect(badCode.statusCode).toBe(400);
+    const created = await registerMember({ email: 'member@example.com', password: 'Correct-horse-1', displayName: 'New Member', phone: '08031112222' });
     expect(created.statusCode).toBe(201);
     const token = created.json().accessToken as string;
     const headers = { authorization: `Bearer ${token}` };

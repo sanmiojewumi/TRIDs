@@ -26,6 +26,7 @@ import { providerRefundSettled } from './gateways.js';
 import { HttpError } from './http.js';
 import { notifyUser } from './notify.js';
 import { decryptString, encryptString, hashPin, pinsMatch, randomPin, randomReference, sha256 } from './secrets.js';
+import { deliverCode, normalizePhone } from './verify-contact.js';
 import { reverseOrderLedger, sellerPayableBalance, settleSuccessfulCharge } from './settlement.js';
 import { contentTypeFor, type ObjectStorage } from './storage.js';
 import { paystackSignature, safeEqualText, type FeeSnapshot } from '@ninted/domain';
@@ -98,6 +99,8 @@ function publicUser(user: SessionUser) {
     id: user.id,
     email: user.email,
     phone: user.phone,
+    emailVerified: Boolean(user.emailVerifiedAt),
+    phoneVerified: Boolean(user.phoneVerifiedAt),
     displayName: user.displayName,
     status: user.status,
     mfaEnabled: user.mfaEnabled,
@@ -339,49 +342,91 @@ export async function buildApp(deps: AppDeps) {
     };
   });
 
+  async function consumeCode(channel: 'EMAIL' | 'SMS', target: string, code: string) {
+    const row = await prisma.verificationCode.findFirst({
+      where: { channel, target, consumedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!row) throw new HttpError(400, `Request a new ${channel === 'EMAIL' ? 'email' : 'phone'} code`);
+    if (row.attempts >= 5) throw new HttpError(400, 'That code has been tried too many times. Request a new one.');
+    if (!pinsMatch(code, env.accessTokenSecret, row.codeHash)) {
+      await prisma.verificationCode.update({ where: { id: row.id }, data: { attempts: { increment: 1 } } });
+      throw new HttpError(400, channel === 'EMAIL' ? 'The email code is not correct' : 'The phone code is not correct');
+    }
+    await prisma.verificationCode.update({ where: { id: row.id }, data: { consumedAt: new Date() } });
+  }
+
+  app.post('/auth/challenges', { config: { rateLimit: { max: 8, timeWindow: '10 minutes' } } }, async (request) => {
+    const body = request.body as { email?: string; phone?: string };
+    const email = (body.email || '').trim().toLowerCase();
+    const phone = normalizePhone(body.phone || '');
+    if (!isValidEmail(email)) throw new HttpError(400, 'Enter a valid email');
+    if (!phone) throw new HttpError(400, 'Enter a Nigerian phone number, such as 08012345678');
+    if (await prisma.user.findUnique({ where: { email } })) throw new HttpError(409, 'An account with that email already exists');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+    const emailCode = randomPin();
+    const phoneCode = randomPin();
+    await prisma.verificationCode.deleteMany({ where: { target: { in: [email, phone] }, consumedAt: null } });
+    await prisma.verificationCode.createMany({
+      data: [
+        { channel: 'EMAIL', target: email, codeHash: hashPin(emailCode, env.accessTokenSecret), expiresAt },
+        { channel: 'SMS', target: phone, codeHash: hashPin(phoneCode, env.accessTokenSecret), expiresAt },
+      ],
+    });
+    const emailDelivery = await deliverCode(env, 'EMAIL', email, emailCode);
+    const phoneDelivery = await deliverCode(env, 'SMS', phone, phoneCode);
+    if (emailDelivery === 'failed' || phoneDelivery === 'failed') {
+      throw new HttpError(502, 'The code could not be delivered. Try again in a moment.');
+    }
+    const preview = env.nodeEnv === 'production' ? undefined : {
+      ...(emailDelivery === 'unconfigured' ? { email: emailCode } : {}),
+      ...(phoneDelivery === 'unconfigured' ? { phone: phoneCode } : {}),
+    };
+    if (env.nodeEnv === 'production' && (emailDelivery !== 'sent' || phoneDelivery !== 'sent')) {
+      throw new HttpError(503, 'Email and SMS delivery are not configured, so a code cannot be sent');
+    }
+    return {
+      sent: { email: emailDelivery === 'sent', phone: phoneDelivery === 'sent' },
+      ...(preview && (preview.email || preview.phone) ? { preview } : {}),
+    };
+  });
+
   app.post('/auth/register', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
     const body = request.body as {
       email?: string;
       password?: string;
       displayName?: string;
       phone?: string;
-      intent?: string;
-      storeName?: string;
-      city?: string;
-      state?: string;
+      emailCode?: string;
+      phoneCode?: string;
     };
     const email = (body.email || '').trim().toLowerCase();
+    const phone = normalizePhone(body.phone || '');
     if (!isValidEmail(email)) throw new HttpError(400, 'Enter a valid email');
+    if (!phone) throw new HttpError(400, 'Enter a Nigerian phone number, such as 08012345678');
     const issues = passwordIssues(body.password || '');
     if (issues.length) throw new HttpError(400, issues.join('. '));
     if (!body.displayName || body.displayName.trim().length < 2) throw new HttpError(400, 'Enter your name');
-    if (body.state && !isNigerianState(body.state)) throw new HttpError(400, 'Choose a Nigerian state');
+    await consumeCode('EMAIL', email, (body.emailCode || '').trim());
+    await consumeCode('SMS', phone, (body.phoneCode || '').trim());
     const passwordHash = await hashPassword(body.password || '');
+    const verifiedAt = new Date();
     try {
       const user = await prisma.user.create({
         data: {
           email,
           passwordHash,
           displayName: body.displayName.trim(),
-          phone: body.phone?.trim() || null,
-          seller:
-            body.intent === 'SELL_INDIVIDUAL' || body.intent === 'SELL_BUSINESS'
-              ? {
-                  create: {
-                    type: body.intent === 'SELL_BUSINESS' ? 'BUSINESS' : 'INDIVIDUAL',
-                    storeName: body.storeName?.trim() || body.displayName.trim(),
-                    city: body.city,
-                    state: body.state,
-                    businessName: body.intent === 'SELL_BUSINESS' ? body.storeName : null,
-                  },
-                }
-              : undefined,
+          phone,
+          emailVerifiedAt: verifiedAt,
+          phoneVerifiedAt: verifiedAt,
         },
         include: userInclude,
       });
       await notifyUser(prisma, env, user, {
         title: 'Welcome to Ninted 9ja',
-        body: 'Your account is ready. You can buy now, and sell once your profile is set up.',
+        body: 'Your email and phone are verified. You can buy now, and open a shop from your profile when you want to sell.',
         linkUrl: '/',
       });
       return reply.code(201).send(await issue(reply, user));
@@ -476,8 +521,10 @@ export async function buildApp(deps: AppDeps) {
     }
     if (body.phone !== undefined) {
       const phone = (body.phone || '').trim();
-      if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) throw new HttpError(400, 'Enter a valid phone number');
-      data.phone = phone || null;
+      if (phone && !normalizePhone(phone)) throw new HttpError(400, 'Enter a Nigerian phone number, such as 08012345678');
+      const next = phone ? normalizePhone(phone) : null;
+      data.phone = next;
+      if (next !== user.phone) data.phoneVerifiedAt = null;
     }
     for (const key of ['emailNotifications', 'smsNotifications', 'pushNotifications', 'promotionNotifications'] as const) {
       if (typeof body[key] === 'boolean') data[key] = body[key];

@@ -28,7 +28,7 @@ export default function AccountPage() {
     <div className="stack">
       <AccountNav />
       <h1 style={{ fontFamily: 'var(--serif)', margin: 0 }}>{user.displayName}</h1>
-      <p className="muted">{user.email}{user.phone ? ` · ${user.phone}` : ''}</p>
+      <p className="muted">{user.email} · {user.emailVerified ? 'email verified' : 'email not verified'}{user.phone ? ` · ${user.phone} · ${user.phoneVerified ? 'phone verified' : 'phone not verified'}` : ''}</p>
       <section className="panel stack">
         <p className="kicker">Account</p>
         <p>{user.seller ? `${user.seller.storeName} · ${user.seller.verification}` : 'Buyer account. You can open a seller profile whenever you want to list something.'}</p>

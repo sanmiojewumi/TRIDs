@@ -11,6 +11,8 @@ model User {
   id                         String        @id @default(cuid())
   email                      String        @unique
   phone                      String?
+  emailVerifiedAt            DateTime?
+  phoneVerifiedAt            DateTime?
   passwordHash               String
   displayName                String
   avatarUrl                  String?
@@ -46,6 +48,19 @@ enum AccountStatus {
   ACTIVE
   SUSPENDED
   CLOSED
+}
+
+model VerificationCode {
+  id         String    @id @default(cuid())
+  channel    String
+  target     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([channel, target])
 }
 
 model UserRole {

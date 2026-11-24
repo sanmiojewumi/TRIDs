@@ -7,6 +7,8 @@ export interface SessionUser {
   id: string;
   email: string;
   phone: string | null;
+  emailVerified: boolean;
+  phoneVerified: boolean;
   displayName: string;
   mfaEnabled: boolean;
   emailNotifications: boolean;

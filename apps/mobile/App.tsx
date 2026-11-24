@@ -32,6 +32,9 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [phoneCode, setPhoneCode] = useState('');
   const [cart, setCart] = useState<{ quantity: number; product: Product }[]>([]);
   const [orders, setOrders] = useState<{ id: string; status: string; buyerTotalKobo: number }[]>([]);
 
@@ -88,9 +91,13 @@ export default function App() {
         <View style={styles.list}>
           <TextInput style={styles.input} placeholder="Name, if you are new" value={name} onChangeText={setName} />
           <TextInput style={styles.input} autoCapitalize="none" placeholder="Email" value={email} onChangeText={setEmail} />
+          <TextInput style={styles.input} placeholder="Phone, 080…" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
           <TextInput style={styles.input} secureTextEntry placeholder="Password" value={password} onChangeText={setPassword} />
+          <TextInput style={styles.input} placeholder="Email code" value={emailCode} onChangeText={setEmailCode} keyboardType="number-pad" />
+          <TextInput style={styles.input} placeholder="Phone code" value={phoneCode} onChangeText={setPhoneCode} keyboardType="number-pad" />
           <Pressable style={styles.button} onPress={() => call<{ accessToken: string }>('/auth/login', { method: 'POST', body: { email, password } }).then((data) => persist(data.accessToken)).then(() => setScreen('home')).catch((error: Error) => setMessage(error.message))}><Text style={styles.buttonText}>Sign in</Text></Pressable>
-          <Pressable style={styles.secondary} onPress={() => call<{ accessToken: string }>('/auth/register', { method: 'POST', body: { email, password, displayName: name || 'Ninted member', intent: 'BUY' } }).then((data) => persist(data.accessToken)).then(() => setScreen('home')).catch((error: Error) => setMessage(error.message))}><Text>Create account</Text></Pressable>
+          <Pressable style={styles.secondary} onPress={() => call<{ preview?: { email?: string; phone?: string } }>('/auth/challenges', { method: 'POST', body: { email, phone } }).then((data) => { if (data.preview?.email) setEmailCode(data.preview.email); if (data.preview?.phone) setPhoneCode(data.preview.phone); setMessage(data.preview ? 'Codes are shown because no email or SMS provider is connected. Create the account next.' : 'Codes sent. Enter them, then create the account.'); }).catch((error: Error) => setMessage(error.message))}><Text>Send codes</Text></Pressable>
+          <Pressable style={styles.secondary} onPress={() => call<{ accessToken: string }>('/auth/register', { method: 'POST', body: { email, password, displayName: name || 'Ninted member', phone, emailCode, phoneCode } }).then((data) => persist(data.accessToken)).then(() => setScreen('home')).catch((error: Error) => setMessage(error.message))}><Text>Create account</Text></Pressable>
         </View>
       ) : null}
       {screen === 'cart' ? (
