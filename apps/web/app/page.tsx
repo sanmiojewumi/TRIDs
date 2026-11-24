@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
-import { ItemRail, type CardProduct } from '@/components/ProductCard';
+import { ProductCard, type CardProduct } from '@/components/ProductCard';
 import { serverGet } from '@/lib/server';
 
 interface HomeData {
@@ -11,6 +11,16 @@ interface HomeData {
   categories: { slug: string; name: string; children: { slug: string; name: string }[] }[];
   sellers: { id: string; storeName: string; city: string | null; state: string | null; ratingAvg: number; ratingCount: number }[];
   promotions: { id: string; title: string; body: string }[];
+}
+
+function Block({ title, products }: { title: string; products: CardProduct[] }) {
+  if (!products.length) return null;
+  return (
+    <section className="section">
+      <h2>{title}</h2>
+      <div className="grid">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+    </section>
+  );
 }
 
 export default async function HomePage() {
@@ -46,9 +56,9 @@ export default async function HomePage() {
           <p>{promotion.body}</p>
         </section>
       ))}
-      <ItemRail title="Featured" products={featured} />
-      <ItemRail title="New arrivals" products={arrivals} />
-      <ItemRail title="Trending" products={trending} />
+      <Block title="Featured" products={featured} />
+      <Block title="New arrivals" products={arrivals} />
+      <Block title="Trending" products={trending} />
       {data && !featured.length && !arrivals.length ? <div className="empty">No listings yet. When sellers publish, they show up here.</div> : null}
       {data?.sellers.length ? (
         <section className="section">

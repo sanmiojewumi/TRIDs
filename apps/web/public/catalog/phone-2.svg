@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
-  <rect width="800" height="1000" fill="#ece7db"/>
-  <rect x="300" y="180" width="200" height="460" rx="28" fill="#0b241c" transform="rotate(-12 400 410)"/>
-  <rect x="318" y="210" width="164" height="370" rx="14" fill="#1f7a45" transform="rotate(-12 400 410)"/>
-  <rect x="250" y="760" width="300" height="16" rx="8" fill="#12382c"/>
-  <text x="400" y="820" text-anchor="middle" fill="#12382c" font-family="Georgia" font-size="32">128GB</text>
-</svg>

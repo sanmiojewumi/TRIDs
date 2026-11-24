@@ -108,27 +108,6 @@ async function main() {
       });
       console.log('Seeded demo closet for ada@ninted.test');
     }
-    const frames: Record<string, string[]> = {
-      'Olive wrap dress': ['/catalog/olive-dress-1.svg', '/catalog/olive-dress-2.svg'],
-      'Forest loafers': ['/catalog/loafers-1.svg', '/catalog/loafers-2.svg'],
-      'Unlocked dual-SIM phone': ['/catalog/phone-1.svg', '/catalog/phone-2.svg'],
-    };
-    const closet = await prisma.product.findMany({ where: { sellerId: seller.id }, include: { images: true } });
-    for (const product of closet) {
-      const urls = frames[product.title];
-      if (!urls || product.images.length) continue;
-      await prisma.productImage.createMany({
-        data: urls.map((url, sortOrder) => ({ productId: product.id, url, sortOrder })),
-      });
-    }
-  }
-
-  const withoutShop = await prisma.user.findMany({ where: { seller: null } });
-  for (const member of withoutShop) {
-    const name = member.displayName.trim() || 'Member';
-    await prisma.sellerProfile.create({
-      data: { userId: member.id, type: 'INDIVIDUAL', storeName: /shop$/i.test(name) ? name : `${name}'s shop` },
-    });
   }
 }
 

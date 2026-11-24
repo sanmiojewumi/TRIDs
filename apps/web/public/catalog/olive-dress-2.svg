@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000">
-  <rect width="800" height="1000" fill="#e7efe4"/>
-  <path d="M470 150c80 20 140 90 150 180l80 30-30 80-70-20-20 430c-50 50-120 70-160 40-30-80-40-200-20-320 30-40 40-90 20-150-30-20-70-10-90 20l-40-90c30-80 80-160 180-200z" fill="#6d7844"/>
-  <circle cx="250" cy="760" r="70" fill="#12382c"/>
-  <text x="250" y="768" text-anchor="middle" fill="#d7f26a" font-family="Georgia" font-size="28">12</text>
-</svg>
