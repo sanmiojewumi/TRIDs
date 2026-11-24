@@ -39,8 +39,31 @@ img { max-width: 100%; display: block; }
 .search button, .btn { border: 0; cursor: pointer; border-radius: 999px; }
 .search button { background: var(--forest); color: white; padding: 0 18px; }
 .nav { display: flex; gap: 8px; align-items: center; }
-.nav a, .text-btn { padding: 8px 12px; border-radius: 999px; color: var(--forest); }
-.nav a[data-active="true"], .nav a:hover { background: white; }
+.nav a, .text-btn { padding: 8px 12px; border-radius: 999px; color: var(--forest); background: transparent; border: 0; cursor: pointer; text-align: left; }
+.nav a[data-active="true"], .nav a:hover, .text-btn:hover { background: white; }
+.menu-btn {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--forest);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.menu-icon { position: relative; width: 16px; height: 2px; background: var(--forest); border-radius: 2px; }
+.menu-icon::before, .menu-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 2px;
+  background: var(--forest);
+  border-radius: 2px;
+}
+.menu-icon::before { top: -5px; }
+.menu-icon::after { top: 5px; }
 .page { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 72px; flex: 1; }
 .hero { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 28px; align-items: end; margin-bottom: 28px; }
 .hero h1 { font-family: var(--serif); font-weight: 560; font-size: clamp(48px, 7vw, 92px); line-height: 0.92; letter-spacing: -0.045em; margin: 0; }
@@ -84,7 +107,25 @@ th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--lin
   .top, .hero, .split, .grid, .filters, .sellers { grid-template-columns: 1fr; }
   .top { display: flex; flex-wrap: wrap; }
   .grid { grid-template-columns: repeat(2, 1fr); }
+  .menu-btn { display: inline-flex; margin-left: auto; }
   .search { order: 3; width: 100%; }
+  .nav {
+    display: none;
+    position: absolute;
+    z-index: 30;
+    left: 0;
+    right: 0;
+    top: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 10px 16px 16px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+  .nav[data-open="true"] { display: flex; }
+  .nav a, .nav .text-btn { padding: 12px 14px; background: var(--sand); }
 }
 @media (max-width: 640px) {
   .grid { grid-template-columns: 1fr; }
