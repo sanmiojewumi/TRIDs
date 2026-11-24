@@ -6,10 +6,15 @@ import { api, clearSession, saveSession } from './api';
 export interface SessionUser {
   id: string;
   email: string;
+  phone: string | null;
   displayName: string;
   mfaEnabled: boolean;
+  emailNotifications: boolean;
+  smsNotifications: boolean;
+  pushNotifications: boolean;
+  promotionNotifications: boolean;
   roles: string[];
-  seller: { type: string; storeName: string; verification: string; ratingAvg: number; ratingCount: number } | null;
+  seller: { type: string; storeName: string; bio: string; city: string | null; state: string | null; verification: string; ratingAvg: number; ratingCount: number } | null;
 }
 
 const SessionContext = createContext<{

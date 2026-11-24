@@ -1,7 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { NIGERIAN_STATES } from '@ninted/domain/states';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import type { SessionUser } from '@/lib/session';
@@ -36,12 +38,12 @@ export default function RegisterPage() {
   return (
     <form className="panel stack" style={{ maxWidth: 560 }} onSubmit={submit}>
       <h1 style={{ fontFamily: 'var(--serif)', margin: 0 }}>Create your account</h1>
-      <p className="muted">One account can buy and sell. Business sellers add a store name.</p>
+      <p className="muted">One account can buy and sell. Use at least 10 characters, with a letter and a number.</p>
       {error ? <div className="error">{error}</div> : null}
       <label className="field">Name<input name="displayName" required /></label>
       <label className="field">Email<input name="email" type="email" required /></label>
       <label className="field">Phone<input name="phone" /></label>
-      <label className="field">Password<input name="password" type="password" required /></label>
+      <label className="field">Password<input name="password" type="password" required minLength={10} /></label>
       <label className="field">I want to
         <select name="intent" defaultValue="BUY">
           <option value="BUY">Buy</option>
@@ -51,8 +53,13 @@ export default function RegisterPage() {
       </label>
       <label className="field">Store name<input name="storeName" /></label>
       <label className="field">City<input name="city" /></label>
-      <label className="field">State<input name="state" placeholder="Lagos" /></label>
+      <label className="field">State
+        <select name="state" defaultValue="Lagos">
+          {NIGERIAN_STATES.map((state) => <option key={state}>{state}</option>)}
+        </select>
+      </label>
       <button className="btn" type="submit">Create account</button>
+      <Link href="/login">Already have an account? Sign in</Link>
     </form>
   );
 }

@@ -36,8 +36,8 @@ export default function LoginPage() {
       <label className="field">Email<input name="email" type="email" required /></label>
       <label className="field">Password<input name="password" type="password" required /></label>
       {mfa ? <label className="field">Authentication code<input name="otp" inputMode="numeric" required /></label> : null}
-      <button className="btn" type="submit">Continue</button>
-      <Link href="/register">Create an account</Link>
+      <button className="btn" type="submit">Sign in</button>
+      <Link className="btn light" href="/register">Create account</Link>
     </form>
   );
 }

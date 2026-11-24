@@ -331,4 +331,61 @@ describe('marketplace critical paths', () => {
     const visitor = await app.inject({ method: 'GET', url: '/admin/commercial-settings', headers: { authorization: `Bearer ${buyerToken}` } });
     expect(visitor.statusCode).toBe(403);
   });
+
+  it('creates an account and saves profile, settings, and a new password', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { email: 'member@example.com', password: 'Correct-horse-1', displayName: 'New Member', phone: '08031112222', intent: 'BUY' },
+    });
+    expect(created.statusCode).toBe(201);
+    const token = created.json().accessToken as string;
+    const headers = { authorization: `Bearer ${token}` };
+    const profile = await app.inject({
+      method: 'PATCH',
+      url: '/account',
+      headers,
+      payload: { displayName: 'Updated Member', phone: '08039998888', smsNotifications: true },
+    });
+    expect(profile.statusCode).toBe(200);
+    expect(profile.json().user.displayName).toBe('Updated Member');
+    expect(profile.json().user.phone).toBe('08039998888');
+    expect(profile.json().user.smsNotifications).toBe(true);
+    const seller = await app.inject({
+      method: 'POST',
+      url: '/seller/profile',
+      headers,
+      payload: { type: 'INDIVIDUAL', storeName: 'Member Closet', state: 'Lagos', city: 'Ikeja' },
+    });
+    expect(seller.statusCode).toBe(201);
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: '/seller/profile',
+      headers,
+      payload: { bio: 'Lagos wardrobe', city: 'Yaba' },
+    });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().user.seller.bio).toBe('Lagos wardrobe');
+    expect(edited.json().user.seller.city).toBe('Yaba');
+    const rejected = await app.inject({
+      method: 'POST',
+      url: '/auth/password',
+      headers,
+      payload: { currentPassword: 'wrong-password', newPassword: 'Correct-horse-2' },
+    });
+    expect(rejected.statusCode).toBe(401);
+    const changed = await app.inject({
+      method: 'POST',
+      url: '/auth/password',
+      headers,
+      payload: { currentPassword: 'Correct-horse-1', newPassword: 'Correct-horse-2' },
+    });
+    expect(changed.statusCode).toBe(200);
+    const relog = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'member@example.com', password: 'Correct-horse-2' },
+    });
+    expect(relog.statusCode).toBe(200);
+  });
 });

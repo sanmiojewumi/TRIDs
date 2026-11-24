@@ -6,8 +6,27 @@ export async function notifyUser(
   prisma: PrismaClient,
   env: Env,
   user: { id: string; email?: string | null; phone?: string | null },
-  input: { title: string; body: string; linkUrl?: string },
+  input: { title: string; body: string; linkUrl?: string; category?: 'account' | 'promotion' | 'security' },
 ) {
+  const category = input.category ?? 'account';
+  const prefs = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      email: true,
+      phone: true,
+      emailNotifications: true,
+      smsNotifications: true,
+      pushNotifications: true,
+      promotionNotifications: true,
+    },
+  });
+  if (category === 'promotion' && prefs && !prefs.promotionNotifications) return;
+  const email = prefs?.email ?? user.email;
+  const phone = prefs?.phone ?? user.phone;
+  const allowEmail = Boolean(email) && (category === 'security' || !prefs || prefs.emailNotifications);
+  const allowSms = Boolean(phone) && Boolean(prefs?.smsNotifications);
+  const allowPush = !prefs || prefs.pushNotifications;
+
   await prisma.notification.create({
     data: {
       userId: user.id,
@@ -19,7 +38,7 @@ export async function notifyUser(
     },
   });
 
-  if (user.email) {
+  if (allowEmail && email) {
     if (!env.smtpUrl) {
       await prisma.notification.create({
         data: {
@@ -36,7 +55,7 @@ export async function notifyUser(
         const transport = nodemailer.createTransport(env.smtpUrl);
         await transport.sendMail({
           from: 'Ninted 9ja <noreply@ninted9ja.local>',
-          to: user.email,
+          to: email,
           subject: input.title,
           text: input.body,
         });
@@ -64,7 +83,7 @@ export async function notifyUser(
     }
   }
 
-  if (user.phone) {
+  if (allowSms && phone) {
     if (!env.smsHttpUrl) {
       await prisma.notification.create({
         data: {
@@ -83,7 +102,7 @@ export async function notifyUser(
             'content-type': 'application/json',
             ...(env.smsApiKey ? { authorization: `Bearer ${env.smsApiKey}` } : {}),
           },
-          body: JSON.stringify({ to: user.phone, text: `${input.title}: ${input.body}` }),
+          body: JSON.stringify({ to: phone, text: `${input.title}: ${input.body}` }),
         });
         await prisma.notification.create({
           data: {
@@ -107,6 +126,8 @@ export async function notifyUser(
       }
     }
   }
+
+  if (!allowPush) return;
 
   if (!env.pushHttpUrl) {
     await prisma.notification.create({

@@ -17,6 +17,10 @@ model User {
   status                     AccountStatus @default(ACTIVE)
   mfaSecretEnc               String?
   mfaEnabled                 Boolean       @default(false)
+  emailNotifications         Boolean       @default(true)
+  smsNotifications           Boolean       @default(false)
+  pushNotifications          Boolean       @default(true)
+  promotionNotifications     Boolean       @default(false)
   failedPaymentCount         Int           @default(0)
   failedPaymentWindowStart   DateTime?
   createdAt                  DateTime      @default(now())

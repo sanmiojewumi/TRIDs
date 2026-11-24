@@ -74,6 +74,9 @@ img { max-width: 100%; display: block; }
 .section h2 { font-family: var(--serif); font-size: 36px; margin: 0 0 14px; letter-spacing: -0.03em; }
 .rail, .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { border: 1px solid var(--line); background: white; border-radius: 999px; padding: 8px 14px; }
+.chip[data-active="true"] { background: var(--forest); color: white; border-color: var(--forest); }
+.check { display: flex; gap: 10px; align-items: center; }
+.row .btn { text-align: center; }
 .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .card { background: white; border-radius: 24px; overflow: hidden; border: 1px solid var(--line); display: flex; flex-direction: column; min-height: 100%; }
 .art { aspect-ratio: 4/5; display: grid; place-items: end start; padding: 16px; color: white; }

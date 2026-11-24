@@ -49,7 +49,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link href="/messages" data-active={pathname.startsWith('/messages')} onClick={closeMenu}>Inbox</Link>
           {user ? <Link href="/orders" data-active={pathname.startsWith('/orders')} onClick={closeMenu}>Orders</Link> : null}
           {staff ? <Link href="/admin" data-active={pathname.startsWith('/admin')} onClick={closeMenu}>Admin</Link> : null}
-          {user ? <Link href="/account" data-active={pathname.startsWith('/account')} onClick={closeMenu}>{user.displayName.split(' ')[0]}</Link> : <Link href="/login" data-active={pathname.startsWith('/login')} onClick={closeMenu}>Sign in</Link>}
+          {user ? <Link href="/account" data-active={pathname === '/account'} onClick={closeMenu}>Account</Link> : <Link href="/login" data-active={pathname.startsWith('/login')} onClick={closeMenu}>Sign in</Link>}
+          {user ? <Link href="/account/profile" data-active={pathname.startsWith('/account/profile')} onClick={closeMenu}>Profile</Link> : <Link href="/register" data-active={pathname.startsWith('/register')} onClick={closeMenu}>Create account</Link>}
+          {user ? <Link href="/account/settings" data-active={pathname.startsWith('/account/settings')} onClick={closeMenu}>Settings</Link> : null}
           {user ? <button className="text-btn" onClick={() => logout().then(() => { closeMenu(); router.push('/'); })}>Sign out</button> : null}
         </nav>
       </header>

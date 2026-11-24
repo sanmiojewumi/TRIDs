@@ -101,6 +101,10 @@ function publicUser(user: SessionUser) {
     displayName: user.displayName,
     status: user.status,
     mfaEnabled: user.mfaEnabled,
+    emailNotifications: user.emailNotifications,
+    smsNotifications: user.smsNotifications,
+    pushNotifications: user.pushNotifications,
+    promotionNotifications: user.promotionNotifications,
     roles: user.roles.map((role) => role.role),
     seller: user.seller
       ? {
@@ -454,6 +458,58 @@ export async function buildApp(deps: AppDeps) {
     return { mfaEnabled: true };
   });
 
+  app.patch('/account', async (request) => {
+    const user = await requireUser(request);
+    const body = request.body as {
+      displayName?: string;
+      phone?: string | null;
+      emailNotifications?: boolean;
+      smsNotifications?: boolean;
+      pushNotifications?: boolean;
+      promotionNotifications?: boolean;
+    };
+    const data: Prisma.UserUpdateInput = {};
+    if (body.displayName !== undefined) {
+      const name = body.displayName.trim();
+      if (name.length < 2) throw new HttpError(400, 'Enter your name');
+      data.displayName = name;
+    }
+    if (body.phone !== undefined) {
+      const phone = (body.phone || '').trim();
+      if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) throw new HttpError(400, 'Enter a valid phone number');
+      data.phone = phone || null;
+    }
+    for (const key of ['emailNotifications', 'smsNotifications', 'pushNotifications', 'promotionNotifications'] as const) {
+      if (typeof body[key] === 'boolean') data[key] = body[key];
+    }
+    if (!Object.keys(data).length) throw new HttpError(400, 'Nothing to update');
+    await prisma.user.update({ where: { id: user.id }, data });
+    await audit(user.id, 'account.updated', 'User', user.id, { fields: Object.keys(data) }, request);
+    const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: userInclude });
+    return { user: publicUser(fresh) };
+  });
+
+  app.post('/auth/password', async (request) => {
+    const user = await requireUser(request);
+    const body = request.body as { currentPassword?: string; newPassword?: string };
+    if (!(await verifyPassword(body.currentPassword || '', user.passwordHash))) {
+      throw new HttpError(401, 'Current password is incorrect');
+    }
+    const issues = passwordIssues(body.newPassword || '');
+    if (issues.length) throw new HttpError(400, issues.join('. '));
+    if (body.newPassword === body.currentPassword) throw new HttpError(400, 'Choose a different password');
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(body.newPassword || '') } });
+    await prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+    await audit(user.id, 'password.changed', 'User', user.id, {}, request);
+    await notifyUser(prisma, env, user, {
+      category: 'security',
+      title: 'Password changed',
+      body: 'Your Ninted 9ja password was changed. If this was not you, reset it and contact support.',
+      linkUrl: '/account/settings',
+    });
+    return { ok: true };
+  });
+
   app.post('/products', async (request, reply) => {
     const user = await requireUser(request, { seller: true });
     const body = request.body as {
@@ -522,6 +578,28 @@ export async function buildApp(deps: AppDeps) {
     });
     const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: userInclude });
     return reply.code(201).send({ user: publicUser(fresh) });
+  });
+
+  app.patch('/seller/profile', async (request) => {
+    const user = await requireUser(request, { seller: true });
+    const body = request.body as { storeName?: string; bio?: string; city?: string; state?: string };
+    if (body.state && !isNigerianState(body.state)) throw new HttpError(400, 'Choose a Nigerian state');
+    const storeName = body.storeName?.trim();
+    if (body.storeName !== undefined && (!storeName || storeName.length < 2)) throw new HttpError(400, 'Enter a store name');
+    const bio = body.bio?.trim();
+    if (bio && bio.length > 500) throw new HttpError(400, 'Keep the bio under 500 characters');
+    await prisma.sellerProfile.update({
+      where: { userId: user.id },
+      data: {
+        ...(storeName ? { storeName } : {}),
+        ...(body.bio !== undefined ? { bio: bio || '' } : {}),
+        ...(body.city !== undefined ? { city: body.city.trim() || null } : {}),
+        ...(body.state ? { state: body.state } : {}),
+      },
+    });
+    await audit(user.id, 'seller.profile.updated', 'SellerProfile', user.id, {}, request);
+    const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: userInclude });
+    return { user: publicUser(fresh) };
   });
 
   app.get('/seller/products', async (request) => {
