@@ -1,0 +1,237 @@
+:root {
+  color: #0f172a;
+  background: #f4f6f8;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: #f4f6f8;
+}
+
+header {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 16px 16px 14px;
+}
+
+.brand {
+  margin: 0;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+h1 {
+  margin: 2px 0 8px;
+  font-size: 28px;
+}
+
+h2 { margin: 0 0 6px; font-size: 20px; }
+
+.folder {
+  margin: 0 0 10px;
+  color: #cbd5e1;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+main, #editor { padding: 16px; }
+
+section {
+  margin-top: 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.lead { margin: 0 0 12px; color: #475569; }
+
+button, input[type="text"] {
+  font: inherit;
+}
+
+button {
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  padding: 10px 14px;
+}
+
+button.primary {
+  background: #b45309;
+  border-color: #b45309;
+  color: #fff;
+  font-weight: 650;
+}
+
+button:disabled { opacity: 0.45; }
+
+#open, #save { width: 100%; }
+
+header button {
+  background: transparent;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+.row { display: flex; gap: 8px; }
+.row button { flex: 1; }
+
+.field, .check {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.check { flex-direction: row; align-items: center; }
+
+input[type="text"] {
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  padding: 8px 12px;
+}
+
+input[type="range"] { width: 100%; height: 32px; }
+
+#thumbs, .strip {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.strip { margin-top: 0; }
+
+.chip, .print-card {
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 8px;
+  min-width: 96px;
+  text-align: center;
+}
+
+.chip.selected, .print-card.selected { border-color: #b45309; }
+
+.chip img, .print-card img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  display: block;
+  margin: 0 auto 6px;
+}
+
+.chip { cursor: pointer; }
+.chip p, .print-card p { margin: 0; font-size: 13px; }
+
+.tiny {
+  min-height: 36px;
+  margin-top: 6px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.editor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  background: #f4f6f8;
+  padding-bottom: 8px;
+}
+
+#doc-name {
+  margin: 0;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#save { width: auto; }
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  touch-action: none;
+}
+
+#page-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+#overlay { position: absolute; inset: 0; }
+
+.stamp {
+  position: absolute;
+  touch-action: none;
+  border: 2px dashed transparent;
+}
+
+.stamp.selected { border-color: #b45309; }
+
+.stamp img {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.sheet {
+  margin-top: 12px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+#hint { margin: 0 0 10px; color: #475569; }
+
+#status {
+  min-height: 1.4em;
+  margin: 0;
+  padding: 8px 16px 20px;
+  color: #0f172a;
+  font-weight: 650;
+}
+
+#status.error { color: #b91c1c; }

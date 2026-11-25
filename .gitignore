@@ -1,0 +1,12 @@
+node_modules
+thumb-desk/android/app/src/main/assets/www
+dist
+*.log
+.DS_Store
+thumb-desk/android/.gradle
+thumb-desk/android/build
+thumb-desk/android/app/build
+thumb-desk/android/local.properties
+thumb-desk/android/*.keystore
+thumb-desk/android/keystore.properties
+.idea

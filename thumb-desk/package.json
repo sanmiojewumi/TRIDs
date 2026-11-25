@@ -1,0 +1,24 @@
+{
+  "name": "thumb-desk",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Place more than one thumbprint on a document or photo, then save it to a folder on the phone.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "android:sync": "npm run build && rm -rf android/app/src/main/assets/www && mkdir -p android/app/src/main/assets/www && cp -r dist/. android/app/src/main/assets/www/"
+  },
+  "dependencies": {
+    "pdfjs-dist": "4.10.38"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.8.3",
+    "vite": "6.3.5",
+    "vitest": "3.2.4"
+  }
+}
